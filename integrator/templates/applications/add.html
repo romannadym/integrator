@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Оформление заявки{% endblock title %}
+
+{% block page-title %}Оформление заявки{% endblock page-title %}
+{% block content %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+<section>
+  <div class="container">
+    <div class="justify-center">
+        <input type="hidden" id="back" value="{% url 'app-list' %}">
+      <div class="form">
+        <form method="POST" enctype="multipart/form-data" id="app-form">
+          {% csrf_token %}
+          <div {% if not show %}class="hidden"{% endif %}>
+            {{ form.client.errors }}
+            {{ form.client.label_tag }} <br>
+            <select name="client" id="id_client">
+              {% for val, text in form.fields.client.choices %}
+                {% if val == 'organization' %}
+
+                {% else %}
+                    <option value="{{ val }}" {% if val == request.user.id %}selected{% endif %}>{{ text }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+
+          </div>
+          <div>
+            {{ form.priority.errors }}
+            {{ form.priority.label_tag }}<br>
+            {{ form.priority }}
+          </div>
+          <style media="screen">
+            /* Контейнер для списка */
+             #equipments {
+                 position: absolute;
+                 width: 320px;
+                 max-height: 200px; /* Ограничение высоты для прокрутки */
+                 overflow-y: auto;
+                 border: 1px solid #ccc;
+                 background: white;
+                 display: none;
+                 z-index: 1000;
+             }
+
+             /* Стили для пунктов списка */
+             .option {
+                 padding: 10px;
+                 cursor: pointer;
+                 border-bottom: 1px solid #eee;
+             }
+
+             .option:hover {
+                 background-color: #f0f0f0;
+             }
+          </style>
+          <div>
+            <label for="id_equipment">Оборудование:</label>
+            <input type="text" id="id_equipment" name="equipment" value=""  placeholder="Введите серийный номер оборудования" autocomplete="off">
+            <div id="equipments">
+            </div>
+          </div>
+          {% if show %}
+        <!--  <div id="confs">
+            <label>Файлы конфигурации:</label>
+
+          </div>-->
+          {% endif %}
+          <div>
+            {{ form.problem.errors }}
+            {{ form.problem.label_tag }}
+            {{ form.problem }}
+          </div>
+          <div>
+            {{ form.contact.errors }}
+            {{ form.contact.label_tag }}<br>
+            {{ form.contact }}
+          </div>
+          <style>
+            .file-upload {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        position: relative; /* добавлено для правильного позиционирования */
+    }
+
+    .file-upload input[type="file"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0; /* чтобы скрыть input */
+        cursor: pointer;
+    }
+
+    .file-upload label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #5897fb;
+        color: white;
+        padding: 2px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+        z-index: 1; /* добавлено для правильного отображения над input */
+    }
+
+    .file-upload label:hover {
+        background-color: #0056b3;
+    }
+
+    .file-name {
+        font-size: 14px;
+        color: #333;
+        display: none;
+    }
+
+    .delete-item {
+        display: none;
+        color: red;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    .delete-item:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="form-grey-line">Файлы</div>
+{{ doc_formset.management_form }}
+
+<div id="file-list"></div>
+
+<div><a id="add-doc" type="button" class="add-item">Добавить файл</a></div>
+          <div class="justify-center">
+            <button type="submit" class="btn dark-btn" id="submit-button">Отправить</button>
+            <a href="{% url 'app-list' %}" class="btn light-btn">Отмена</a>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="empty-doc hidden">
+        <p class="pl-30">
+          {{ doc_formset.empty_form.id }}
+          {{ doc_formset.empty_form.document.errors }}
+          {{ doc_formset.empty_form.document }}
+           <a class="delete-item"></a>
+          <input type="checkbox" name="{{ doc_formset.empty_form.prefix }}-DELETE" id="id_{{ doc_formset.empty_form.prefix }}-DELETE" class="hidden">
+        </p>
+    </div>
+  </div>
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-text"></div>
+      <a class="btn light-btn" id="modal-close">ОК</a>
+    </div>
+  </div>
+</section>
+<script type="text/javascript">
+  $(document).ready(function () {
+      $('#id_client').select2({
+          placeholder: "-------",
+          allowClear: true
+      });
+      $('#id_priority').select2({
+          placeholder: "-------",
+          allowClear: true
+      });
+      $('#id_contact').select2({
+          placeholder: "-------",
+          allowClear: true
+      });
+  });
+</script>
+{% endblock content %}
+{% block pagescripts %}
+<script type="module" src="{% static 'js/apps_add.js' %}"></script>
+{% endblock %}

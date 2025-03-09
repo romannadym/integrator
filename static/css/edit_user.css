@@ -1,0 +1,6 @@
+form .justify-between > div {
+  width: 45%;
+}
+select[name=groups], select.groups, select[name=permissions] {
+  height: 150px;
+}

@@ -1,0 +1,388 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Список заявок{% endblock title %}
+
+{% block page-title %}{% if permissions.is_staff %}Список заявок{% else %} {% endif %}{% endblock page-title %}
+
+{% block content %}
+<section>
+  <div class="container">
+    <div class="align-right"></div>
+    {% if not permissions.is_staff %}
+      <div class="tabs">
+        <a id="tab-apps" class="active">Заявки</a>
+      <!--  <a id="tab-about">Общая информация</a>-->
+        <a id="tab-equipments">Информация о договоре</a>
+      </div>
+      <div class="tab-content tab-about hidden">
+        <div class="block-content">
+          <p><b>Организация:</b> {{ client.organization_name|default_if_none:'' }}</p>
+          <p><b>ФИО:</b> {{ client.fio }}
+          <p><b>ИНН:</b> {{ client.inn|default_if_none:'' }}</p>
+          <p><b>Адрес:</b> {{ client.address|default_if_none:'' }}</p>
+          <p><b>Адрес электронной почты:</b> {{ client.email }}</p>
+          <p><b>Телефон:</b> {{ client.phone|default_if_none:'' }}</p>
+        </div>
+      </div>
+      <div class="tab-content tab-equipments hidden">
+        <div class="justify-between">
+          <a class="btn light-btn" href="{% url 'contacts-list' %}">Контакты</a>
+          <a class="btn light-btn" href="{% url 'change-password' 'app-list' %}">Изменить пароль</a></p>
+          <a class="btn light-btn" href="{% url 'clients-contracts-excel-api' %}">Экспортировать в Excel</a>
+        </div>
+        <div class="block-content">
+          <ul>
+            {% for contract in client.contracts %}
+              <li>
+                <a class="contract mb-10"><b>Договор № {{ contract.number }} от {{ contract.formatted_signed }} (Дата окончания действия договора: {{ contract.formatted_enddate }})</b></a>
+                <ol>
+                  {% for equip in contract.eqcontracts %}
+                    <li>
+                      <a class="contract-equip" equip="{{ equip.sn }}">{{ equip.name }}</a>
+                    </li>
+                  {% endfor %}
+                </ol>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+    <div class="tab-content tab-apps">
+    <div class="filters">
+        <input type="hidden" name="page" id="id_page" value="1">
+        <input type="hidden" id="user_id" value="{{ request.user.id }}">
+    </div>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style media="screen">
+        .checkbox-btn-group {
+	         display: inline-block;
+        }
+        .checkbox-btn-group:after {
+            content: "";
+            clear: both;
+            display: block;
+        }
+        .checkbox-btn-group label {
+            display: inline-block;
+            float: left;
+            margin: 0;
+            user-select: none;
+            position: relative;
+        }
+        .checkbox-btn-group input[type=checkbox] {
+            z-index: -1;
+            opacity: 0;
+            display: block;
+            width: 0;
+            height: 0;
+        }
+        .checkbox-btn-group span {
+            display: inline-block;
+            cursor: pointer;
+            padding: 0px 10px;
+            line-height: 30px;
+            border: 1px solid #999;
+            border-right: none;
+            transition: background 0.2s ease;
+        }
+        .checkbox-btn-group label:first-child span {
+            border-radius: 4px 0 0 4px;
+        }
+        .checkbox-btn-group label:last-child span {
+            border-radius: 0 4px 4px 0;
+            border-right: 1px solid #999;
+        }
+
+        /* Checked */
+        .checkbox-btn-group input[type=checkbox]:checked + span {
+            background: #ffe0a6;
+        }
+
+        /* Focus */
+        .checkbox-btn-group .focused span {
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+
+        /* Hover */
+        .checkbox-btn-group label:hover {
+            color: #666;
+        }
+
+        /* Active */
+        .checkbox-btn-group input[type=checkbox]:active:not(:disabled) + span {
+            background: #d2c5ac;
+            color: #000;
+        }
+
+        /* Disabled */
+        .checkbox-btn-group input[type=checkbox]:disabled + span {
+            background: #efefef;
+            color: #666;
+            cursor: default;
+        }
+        .checkbox-btn-group input[type=checkbox]:checked:disabled + span {
+            background: #f7efdc;
+        }
+        .checkbox-btn-group label {
+    position: relative;
+}
+
+/* Всплывающий текст */
+.checkbox-btn-group span::after {
+    content: attr(data-title); /* Берём текст из data-title */
+    position: absolute;
+    bottom: 35px; /* Расположение под кнопкой */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 5px 10px;
+    font-size: 14px;
+    border-radius: 5px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* Показываем при наведении */
+.checkbox-btn-group label:hover span::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Для ссылки */
+.checkbox-btn-group a::after {
+    content: attr(data-title);
+    position: absolute;
+    bottom: 35px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 5px 10px;
+    font-size: 14px;
+    border-radius: 5px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.checkbox-btn-group a:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+    </style>
+
+    <div class="checkbox-btn-group">
+      {% if permissions.is_staff %}
+        {% if permissions.is_engineer %}
+      <label>
+        <input type="checkbox" id="id_mine" name="mine">
+        <span data-title="Назначеные мне"><i class="fas fa-user"></i></span>
+      </label>
+        {% endif %}
+    	<label>
+    		<input type="checkbox" id="id_opened" name="opened">
+    		<span data-title="все , кроме закрытых"><i class="fas fa-lock-open"></i></span>
+    	</label>
+        {% if permissions.is_admin %}
+    	<label>
+        <a class="" id="export-applications">
+    			<span data-title="Экспортировать в Excel">
+            <i class="fas fa-file"></i>
+          </span>
+        </a>
+    	</label>
+        {% endif %}
+
+        {% endif %}
+        <label>
+          <a class="" href="{% url 'add-application' %}">
+            <span data-title="Открыть заявку">
+              <i class="fas fa-square-plus"></i> <b>Открыть заявку</b>
+            </span>
+          </a>
+        </label>
+  </div>
+
+
+    <style media="screen">
+                .table-container {
+
+                  max-width: 100%; /* Ограничивает ширину контейнера */
+                  }
+
+                  table {
+                      width: 100%; /* Устанавливает ширину таблицы на 100% от родителя */
+                      border-collapse: collapse; /* Убирает пробелы между ячейками */
+                  }
+
+                  th, td {
+                      padding: 8px; /* Отступы внутри ячеек */
+                      border: 1px solid #ddd; /* Граница для ячеек */
+                      text-align: left; /* Выравнивание текста */
+                  }
+                  .status-width{
+                    width:100px
+          }
+          .details-width{
+            min-width:100px!important;
+            max-width:300px!important;
+  }
+          th {
+              position: relative;
+          }
+          th input {
+              position: relative;
+              z-index: 10;
+              width:auto
+          }
+    </style>
+    <div class="mb-10 table-container">
+        <table id="apps-list">
+          <thead>
+            <tr class="filters">
+              <th><input type="text" id="id_number" name="number" placeholder="Номер заявки"></th>
+              <th ><input type="text" id="id_pubdate" name="period" placeholder="Период создания"></th>
+              {% if permissions.is_staff %}
+              <th>
+                <span class="relative">
+                  <input type="text" placeholder="Приоритет заявки" readonly="true" data-target="priority_ids" class="multiple-select">
+                  <ul id="priority_ids" class="multiple-select">
+                    <li>
+                      <input type="checkbox" value="all" checked> <a>Все</a>
+                    </li>
+                    {% for priority in priorities %}
+                      <li>
+                        <input type="checkbox" value="{{ priority.id }}"> <a>{{ priority.name }}</a>
+                      </li>
+                    {% endfor %}
+                    <div class="justify-center mb-10"><a class="btn small-light-btn">Применить</a></div>
+                  </ul>
+                </span>
+              </th>
+              <th><input type="text" id="id_organization" name="organization" placeholder="Заказчик"></th>
+              <th></th>
+              {% endif %}
+              <th><input type="text" id="id_equipment" name="equipment" placeholder="Оборудование"></th>
+              <th>
+                <span class="relative">
+                      <input type="text" placeholder="Статус заявки" readonly="true" data-target="status_ids" class="multiple-select">
+                      <ul id="status_ids" class="multiple-select">
+                        <li>
+                          <input type="checkbox" value="all" checked> <a>Все</a>
+                        </li>
+                        {% for status in statuses %}
+                          <li>
+                            <input type="checkbox" value="{{ status.id }}"> <a>{{ status.name }}</a>
+                          </li>
+                        {% endfor %}
+                        <div class="justify-center mb-10"><a class="btn small-light-btn">Применить</a></div>
+                      </ul>
+                    </span>
+                  </th>
+              <th></th>
+              {% if permissions.is_staff %}
+              <th>
+                 <span class="relative">
+                  <input type="text" placeholder="Инженер" readonly="true" data-target="engineer_ids" class="multiple-select">
+                  <ul id="engineer_ids" class="multiple-select">
+                    <li>
+                      <input type="checkbox" value="all" checked> <a>Все</a>
+                    </li>
+                    {% for engineer in engineers %}
+                      <li>
+                        <input type="checkbox" value="{{ engineer.id }}"> <a>{{ engineer.name }}</a>
+                      </li>
+                    {% endfor %}
+                    <div class="justify-center mb-10"><a class="btn small-light-btn">Применить</a></div>
+                  </ul>
+                </span>
+              </th>
+              {% endif %}
+            </tr>
+            <tr>
+              <th>Идентификатор</th><th>Дата создания</th>
+              {% if permissions.is_staff %}
+              <th>Приоритет заявки</th><th>Заказчик</th><th>Конечный пользователь</th>
+              {% endif %}
+              <th>Оборудование</th><th class="status-width">Статус заявки</th>
+              <th style="min-width:20%" class="details-width">Краткое описание</th>
+              {% if permissions.is_staff %}
+              <th>Назначенный инженер</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for app in applications %}
+              <tr {% if request.user.id == app.engineer_id %}class="bg-middle-grey"{% endif %}>
+                <td><a href="{% url application_link app.id %}">{{ app.id }}</a></td>
+                <td><a href="{% url application_link app.id %}">{{ app.formatted_date }}</a></td>
+                {% if permissions.is_staff %}
+                <td><a href="{% url application_link app.id %}">{{ app.priority_name }}</a></td>
+                <td><a href="{% url application_link app.id %}">{{ app.organization_name }}</a></td>
+                <td><a href="{% url application_link app.id %}">{{ app.end_user_organization_name }}</a></td>
+                {% endif %}
+                <td><a href="{% url application_link app.id %}">{{ app.equipment_name }}</a></td>
+                <td {% if app.status_id == 1 %}class="green-text"{% elif app.status_id == 4 %}class="red-text"{% endif %} style="min-width:10%">
+                  <a href="{% url application_link app.id %}">{{ app.status_name }}</a>
+                </td>
+                <td class="details-width"><a href="{% url application_link app.id %}" class="limited-text" data-max-length="400">{{ app.problem|truncatechars_html:200 }}</a></td>
+                {% if permissions.is_staff %}
+                <td><a href="{% url application_link app.id %}">{{ app.engineer_name }}</a></td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+          <script>
+    // Перебираем каждый объект app и выводим все ключи и значения в консоль
+    const apps = [
+        {% for app in applications %}
+        {
+            {% for key, value in app.items %}
+            {{ key }}: "{{ value|escapejs }}"{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Выводим ключи и значения каждого объекта app в консоль
+    apps.forEach(app => {
+        console.log("App:");
+        Object.entries(app).forEach(([key, value]) => {
+            console.log(`${key}: ${value}`);
+        });
+    });
+</script>
+        </table>
+      </div>
+        <ul class="pagination {% if pagination.num_pages <= 1 %}hidden{% endif %}" num_pages="{{ pagination.num_pages }}">
+          <li class="angle-double-left {% if not pagination.has_previous or pagination.page|add:-2 <= 1  %}hidden{% endif %}"></li>
+          <li class="angle-left prev {% if not pagination.has_previous %}hidden{% endif %}"></li>
+          {% for page in pagination.pages_range %}
+            {% if page <= pagination.page|add:2 and page >= pagination.page|add:-2 %}
+              <li class="page {% if forloop.counter == pagination.page %}current-page{% endif %}">{{ forloop.counter }}</li>
+            {% endif %}
+          {% endfor %}
+          <li class="angle-right next {% if not pagination.has_next %}hidden{% endif %}"></li>
+          <li class="angle-double-right {% if not pagination.has_next or pagination.page|add:2 >= pagination.num_pages %}hidden{% endif %}"></li>
+        </ul>
+      </div>
+    </div>
+</section>
+{% endblock content %}
+{% block pagescripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<script type="text/javascript">
+  $(document).ready(function() {
+           console.log("jQuery загружен!");
+       });
+</script>
+<script type="text/javascript" src="{% static 'js/datepicker.js' %}"></script>
+<script type="text/javascript" src="{% static 'js/applications/apps_list.js' %}"></script>
+
+
+{% endblock %}
