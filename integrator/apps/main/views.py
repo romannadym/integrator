@@ -40,7 +40,7 @@ def GetInTouchView(request): #Контакты
 
         form = GetInTouchForm(request.POST)
         if form.is_valid():
-
+            #dsfsdf
             key = ''
             token = request.POST.get('smart-token')
             # return HttpResponse(token)
