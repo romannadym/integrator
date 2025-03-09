@@ -1,0 +1,18 @@
+# Игнорируем все файлы в корне, но оставляем папки
+/*
+
+# Разрешаем все каталоги
+!*/
+
+# Разрешаем файлы внутри каталогов
+!**/*
+
+# Исключаем конкретные файлы и папки
+integrator/settings.py
+integrator/templates/base.html
+static/css/base.css
+integrator/__pycache__/
+integrator/apps/**/__pycache__/
+integrator/apps/**/**/__pycache__/
+integrator_env/
+media/
