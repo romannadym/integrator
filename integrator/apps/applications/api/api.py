@@ -413,7 +413,7 @@ class GetClientsContractsAPIView(APIView): #Список договоров кл
         from django.db.models import Q
         contracts = ContractModel.objects.filter(
         Q(client__organization_id=request.user.organization_id) |
-        Q(end_user__organization_id=request.user.organization_id)
+        Q(end_users__organization_id=request.user.organization_id)
         )\
             .annotate(formatted_signed = Func(
                     Func(F('signed'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
