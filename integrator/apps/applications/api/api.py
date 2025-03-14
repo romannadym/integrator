@@ -225,8 +225,8 @@ class ApplicationsListAPIView(APIView):
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
                 organization_id = F('equipment__contract__client__organization__id'),
                 organization_name = F('equipment__contract__client__organization__name'),
-                end_user_organization_id = F('contact__organization__id'),
-                end_user_organization_name = Func(F('contact__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                end_user_organization_id = F('equipment__contract__end_users__organization__id'),
+                end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
                 engineer_last_name = Trim('engineer__last_name'),
                 engineer_name = Case(
                     When(
