@@ -1,7 +1,7 @@
 import { getCookie } from '../cookies.js';
 
 document.addEventListener('DOMContentLoaded', function(){
-  let form = document.querySelector('.form form');
+  let form = document.querySelector('form');
 
   form.addEventListener('submit', function(event){
     event.preventDefault();

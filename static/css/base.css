@@ -135,7 +135,7 @@ header {
   z-index: 2;
   /* background-color: var(--color-dark); */
   /* background: linear-gradient(rgba(0, 0, 0, 1),rgba(0, 0, 0, 0)); */
-  background: linear-gradient(#0070c0, rgba(1, 110, 173, 0));
+  background: linear-gradient(#990000, rgba(1, 110, 173, 0));
 }
 .top-bar {
   display: flex;
