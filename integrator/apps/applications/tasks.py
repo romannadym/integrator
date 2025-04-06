@@ -1,3 +1,8 @@
+import imaplib
+import email
+import datetime
+from email.header import decode_header
+import re
 from django.template.loader import render_to_string
 from django.core.mail import EmailMessage
 from django.conf import settings
@@ -12,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 User = get_user_model()
 
-from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel
+from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel
 
 @app.task
 def CloseApplication():
@@ -74,20 +79,21 @@ def CloseApplication():
 
     return HttpResponse(apps)
 
+def decode_subject(subject):
+    """Корректно декодирует заголовок Subject."""
+    if subject:
+        decoded_parts = decode_header(subject)
+        return "".join(
+            part.decode(encoding or "utf-8") if isinstance(part, bytes) else part
+            for part, encoding in decoded_parts
+        )
+    return ""
+
 @app.task
 def CommentsFromEmails():
-    import imaplib
-    import email
-    from email.header import decode_header
-    import datetime
-    import re
-    from django.conf import settings
-    from django.contrib.auth import get_user_model
-    from applications.models import EmailLastUID, AppCommentModel
-
     try:
-        last_uid = EmailLastUID.objects.get(id = 1)
-    except:
+        last_uid = EmailLastUID.objects.get(id=1)
+    except EmailLastUID.DoesNotExist:
         last_uid = None
 
     date = (datetime.date.today() - datetime.timedelta(1)).strftime("%d-%b-%Y")
@@ -95,81 +101,81 @@ def CommentsFromEmails():
     imap = imaplib.IMAP4_SSL(settings.EMAIL_HOST_IMAP)
     imap.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
 
-    imap.select('INBOX', True)
+    imap.select("INBOX", readonly=True)
 
+    search_criteria = ['SINCE', date, 'SUBJECT', u'заявк'.encode('utf-8')]
     if last_uid:
-        result, data = imap.search('utf-8', 'UID', str(last_uid.uid) + ':*', 'subject', u'заявк'.encode('utf-8'))
-    else:
-        result, data = imap.search('utf-8', 'SINCE', date, 'subject', u'заявк'.encode('utf-8'))
+        search_criteria = ['UID', f"{last_uid.uid}:*", 'SUBJECT', u'заявк'.encode('utf-8')]
+
+    result, data = imap.search(None, *search_criteria)
 
     email_uids = data[0].split()
 
-    if len(email_uids) > 0:
-        latest_email_uid = email_uids[-1]
-        first_email_uid = email_uids[0]
+    if not email_uids:
+        return HttpResponse('successful')
 
-        if int(latest_email_uid) < last_uid.uid:
-            return HttpResponse('successful')
-    else:
+    latest_email_uid = int(email_uids[-1])
+    if last_uid and latest_email_uid < last_uid.uid:
         return HttpResponse('successful')
 
     messages = []
-    comments = []
     successful = True
 
     for message in email_uids:
-        result, data = imap.uid('fetch', message, '(RFC822)')
-        raw_email = data[0][1].decode('utf-8')
-
+        result, data = imap.uid("fetch", message, "(RFC822)")
+        raw_email = data[0][1].decode("utf-8")
         email_message = email.message_from_string(raw_email)
 
-        try:
-            subject = decode_header(email_message['Subject'])[0][0].decode()
-        except:
-            subject = email_message['Subject']
+        subject = decode_subject(email_message.get("Subject", ""))
+        app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE | re.UNICODE)
 
-        app_text = re.search(r"^.*заявк. № \d+", subject, re.IGNORECASE | re.UNICODE)
         if app_text:
-            app_number = re.search(r"\d+", app_text.group(), re.IGNORECASE | re.UNICODE).group()
-            if app_number:
-                from_email = email.utils.parseaddr(email_message['From'])[1]
+            app_number = app_text.group(1)
+            from_email = email.utils.parseaddr(email_message["From"])[1]
 
-                if email_message.is_multipart():
-                    for payload in email_message.get_payload():
-                        body = payload.get_payload(decode = True).decode('utf-8')
-                else:
-                    body = email_message.get_payload(decode = True).decode('utf-8')
+            body = ""
+            if email_message.is_multipart():
+                for part in email_message.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition"))
 
-                body_tag_position = body.find('<body')
-                if body_tag_position:
-                    body = body[body_tag_position:]
-                    body_tag_close_position = body.find('>') + 1
-                    body = body[body_tag_close_position:]
+                    if "attachment" not in content_disposition and content_type == "text/plain":
+                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                        break
+            else:
+                body = email_message.get_payload(decode=True).decode("utf-8", errors="ignore")
 
-                messages.append({'text': body, 'application_id': int(app_number), 'author_id': from_email, 'email_date': datetime.datetime.strptime(email_message['Date'], '%a, %d %b %Y %H:%M:%S %z')})
-
+            messages.append({
+                "text": body.strip(),
+                "application_id": int(app_number),
+                "author_id": from_email,
+                "email_date": datetime.datetime.strptime(
+                    email_message["Date"], "%a, %d %b %Y %H:%M:%S %z"
+                ),
+            })
 
     if messages:
         User = get_user_model()
-        users = User.objects.all().values('id', 'email')
+        users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
+
         for message in messages:
-            message['author_id'] = next((row['id'] for row in users if row['email'] == message['author_id']), None)
-            if message['author_id']:
+            message["author_id"] = users.get(message["author_id"])
+            if message["author_id"]:
                 try:
                     AppCommentModel.objects.create(**message)
-                except:
+                except Exception as e:
                     successful = False
 
     if successful:
         if last_uid:
             last_uid.success = True
-            last_uid.uid = int(latest_email_uid) + 1
+            last_uid.uid = latest_email_uid + 1
             last_uid.pubdate = datetime.datetime.now()
             last_uid.save()
         else:
-            EmailLastUID.objects.create(success = True, uid = latest_email_uid)
-    return HttpResponse(successful)
+            EmailLastUID.objects.create(success=True, uid=latest_email_uid)
 
+    return HttpResponse(successful)
     # if comments:
     #     try:
     #         AppCommentModel.objects.bulk_create([AppCommentModel(**vals) for vals in comments])
