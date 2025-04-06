@@ -1,5 +1,30 @@
+Django==3.2.13
 certifi==2022.12.7
 charset-normalizer==2.0.12
 idna==3.4
 mod-wsgi==4.7.1
 urllib3==1.26.15
+openpyxl==3.0.10
+gunicorn
+django-floppyforms
+whitenoise
+mysqlclient  # Для работы с MySQL
+sorl-thumbnail==12.7.0  # Для работы с изображениями
+django-select2  # Для виджета Select2
+djangorestframework  # Django REST Framework
+drf-spectacular  # Для генерации схем OpenAPI
+django-filter  # Для фильтрации данных в Django REST Framework
+django-cleanup  # Для автоматического удаления файлов при удалении объектов
+Pillow  # Для обработки изображений (зависимость для sorl-thumbnail)
+django-ckeditor==6.3.2  # Для текстового редактора CKEditor
+sphinxapi-py3==2.1.11
+redis  # Для работы с Redis
+celery  # Для задач Celery
+drf-excel  # Для поддержки экспорта в Excel
+pytils
+bs4
+barcode
+python-barcode
+python-telegram-bot==13.15  # Совместимо с Python 3.8
+python-dateutil
+django-storages
