@@ -16,3 +16,5 @@ integrator/apps/**/__pycache__/
 integrator/apps/**/**/__pycache__/
 integrator_env/
 media/
+requirements.txt
+celerybeat-schedule
