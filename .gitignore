@@ -16,5 +16,6 @@ integrator/apps/**/__pycache__/
 integrator/apps/**/**/__pycache__/
 integrator_env/
 media/
+static/ckeditor/*
 requirements.txt
 celerybeat-schedule
