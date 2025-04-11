@@ -25,7 +25,7 @@ urlpatterns = [
     path('model_pns/', GetModelPNs, name = 'model-pns'),
     path('spare_excel/', SpareExcelView, name = 'spare-excel'),
     path('spare_load/', SpareLoadView, name = 'spare-load'),
-    path('get_organization/', GetOrganizationView, name = 'get-organization'),
+    path('get_organization/', GetOrganizationView, name = 'get-organization'), 
     path('get_spares_list/', GetSparesList, name = 'get-spares-list'),
     path('get_contacts/', GetContactsView, name = 'get-contacts'),
     path('get_eqs_in_edit/', GetEquipmentsInEdit, name = 'get-eqs-in-edit'),
@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/clients_equipments/<int:client_id>', GetClientsEquipmentsAPIView.as_view()),
 
     path('api/list/', ApplicationsListAPIView.as_view(), name = 'applications-list'),
+    path('api/listnew/', ApplicationsListAPIViewNew.as_view(), name = 'applications-listnew'),
     path('api/clients_contacts/<int:client_id>', GetClientsContactsAPIView.as_view()),
     path('api/add/', AddApplicationAPIView.as_view(), name = 'add-application-api'),
     path('api/list_to_excel/', ApplicationsExcelAPIView.as_view(), name = 'applications-to-excel'),

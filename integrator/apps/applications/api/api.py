@@ -5,14 +5,14 @@ from datetime import datetime
 from dateutil import tz
 
 from itertools import chain
-
+from django.core.paginator import Paginator
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.http import FileResponse, HttpResponse
 from django.conf import settings
 
 from django.db.models import Subquery, OuterRef, Value, Q, F, Func, Case, When, IntegerField, CharField, Prefetch, Sum
-from django.db.models.functions import Concat, Trim
+from django.db.models.functions import Concat, Trim, Left
 
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -73,7 +73,7 @@ class ApplicationListPagination(PageNumberPagination):
 class ApplicationsListAPIView(APIView):
     permission_classes = [IsAuthenticated,]
 
-    @extend_schema(
+    @extend_schema( 
         tags = ['Заявки (Done)'],
         summary = 'Список заявок',
         description = '<b>Внимание!</b> Список заявок отображается в зависимости от прав текущего пользователя\
@@ -271,6 +271,77 @@ class ApplicationsListAPIView(APIView):
             data['client'] = client
 
         return Response(data, status=status.HTTP_200_OK)
+
+class ApplicationsListAPIViewNew(APIView):
+    def get(self, request, *args, **kwargs):
+        User = get_user_model()
+        user = request.user
+        is_admin = user.groups.filter(name='Администратор').exists()
+        is_engineer = user.groups.filter(name='Инженер').exists()
+        is_staff = is_admin or is_engineer
+        prms = {}
+        # Начальный queryset
+        tickets = ApplicationModel.objects.filter(**prms)\
+            .annotate(
+                organization = Subquery(User.objects.filter(id = OuterRef('client_id')).values('organization__name')),
+                equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n:'), 'equipment__sn', Value(')')),
+                status_name = F('status__name'),
+                priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                organization_id = F('equipment__contract__client__organization__id'),
+                organization_name = F('equipment__contract__client__organization__name'),
+                end_user_organization_id = F('equipment__contract__end_users__organization__id'),
+                end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                engineer_last_name = Trim('engineer__last_name'),
+                engineer_name = Case(
+                    When(
+                        Q(engineer__isnull = False) & Q(engineer__last_name__isnull = False) & ~Q(engineer_last_name = ''),
+                        then = Concat('engineer__first_name', Value(' '), 'engineer__last_name')
+                    ),
+                    When(engineer_last_name = '', then = F('engineer__email')),
+                    default = Value(''), output_field = CharField()),
+                formatted_date = Func(
+                    Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
+                    Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
+                ),
+                description = Left('problem', 400)  # Ограничение поля problem до 400 символов
+            )
+
+        # Фильтрация по "только мои"
+        if request.GET.get('mine') == '1':
+            tickets = tickets.filter(engineer=user)
+
+        # Поиск (search box DataTables)
+        search = request.GET.get('search[value]', '').strip()
+        if search:
+            tickets = tickets.filter(
+                Q(problem__icontains=search) |
+                Q(status__name__icontains=search)
+            )
+
+        # Пагинация (по DataTables параметрам)
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        page_number = start // length + 1
+
+        paginator = Paginator(tickets, length)
+        page_obj = paginator.get_page(page_number)
+        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'problem', 'description',]
+
+        if is_staff:
+            fields.extend([
+                'priority_id', 'priority_name', 'organization_id', 'organization_name',
+                'end_user_organization_id', 'end_user_organization_name', 'engineer_id', 'engineer_name',
+                'engineer_last_name'
+            ])
+        # Сериализация
+        data = list(page_obj.object_list.values(*fields))
+
+        return Response({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': paginator.count,
+            'recordsFiltered': paginator.count,
+            'data': data
+        })
 
 class ApplicationsExcelAPIView(APIView):
     permission_classes = [IsAdminUser,]
