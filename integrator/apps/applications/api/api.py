@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.http import FileResponse, HttpResponse
 from django.conf import settings
 
-from django.db.models import Subquery, OuterRef, Value, Q, F, Func, Case, When, IntegerField, CharField, Prefetch, Sum
+from django.db.models import Subquery, OuterRef, Value, Q, F, Func, Case, When, IntegerField, CharField, Prefetch, Sum, Count
 from django.db.models.functions import Concat, Trim, Left
 
 from rest_framework import generics, status
@@ -45,6 +45,42 @@ from applications.api.serializers import *
 
 from integrator.apps.functions import is_admin_or_engineer, get_prms_from_ids, send_email, send_telegram
 
+from django.core.files.storage import default_storage
+import uuid, json, os
+
+class UploadDoc(APIView):
+    permission_classes = [IsAuthenticated,]
+    def post(self, request, *args, **kwargs):
+        if request.method == 'POST':
+            upload = request.FILES['filepond']
+            filename = f"temp/{uuid.uuid4()}_{upload.name}"
+            path = default_storage.save(filename, upload)
+            return Response({'id': path})
+
+class RevertDoc(APIView):
+    permission_classes = [IsAuthenticated,]
+    def delete(self, request, *args, **kwargs):
+        if request.method == 'DELETE':
+            file_id = request.body.decode('utf-8')
+            if default_storage.exists(file_id):
+                default_storage.delete(file_id)
+            return HttpResponse(status=200)
+
+class ClearTemp(APIView):
+    permission_classes = [IsAuthenticated,]
+    def post(self, request, *args, **kwargs):
+        try:
+            file_ids = request.data.get('files', [])
+
+            for file_id in file_ids:
+                if default_storage.exists(file_id):
+                    default_storage.delete(file_id)
+
+            return Response({"status": "ok"})
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+
 @extend_schema(
     tags = ['Список приоритетов заявки (Done)'],
     summary = 'Список приоритетов заявки',
@@ -73,7 +109,7 @@ class ApplicationListPagination(PageNumberPagination):
 class ApplicationsListAPIView(APIView):
     permission_classes = [IsAuthenticated,]
 
-    @extend_schema( 
+    @extend_schema(
         tags = ['Заявки (Done)'],
         summary = 'Список заявок',
         description = '<b>Внимание!</b> Список заявок отображается в зависимости от прав текущего пользователя\
@@ -273,6 +309,7 @@ class ApplicationsListAPIView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 class ApplicationsListAPIViewNew(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
         User = get_user_model()
         user = request.user
@@ -284,7 +321,7 @@ class ApplicationsListAPIViewNew(APIView):
         tickets = ApplicationModel.objects.filter(**prms)\
             .annotate(
                 organization = Subquery(User.objects.filter(id = OuterRef('client_id')).values('organization__name')),
-                equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n:'), 'equipment__sn', Value(')')),
+                equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value('<br> (S/n: '), 'equipment__sn', Value(')')),
                 status_name = F('status__name'),
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
                 organization_id = F('equipment__contract__client__organization__id'),
@@ -303,21 +340,128 @@ class ApplicationsListAPIViewNew(APIView):
                     Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                     Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
                 ),
-                description = Left('problem', 400)  # Ограничение поля problem до 400 символов
+                description = Left('problem', 150),  # Ограничение поля problem до 400 символов,
+                organization_user_id = F('equipment__contract__client__id'),
+                last_change_pubdate=Subquery(
+                    AppHistoryModel.objects
+                    .filter(application_id=OuterRef('id'))
+                    .order_by('-pubdate')
+                    .values('pubdate')[:1]
+                ),
+                last_change_date=Func(
+                            Func(
+                                Subquery(
+                                    AppHistoryModel.objects
+                                    .filter(application_id=OuterRef('id'))
+                                    .order_by('-pubdate')
+                                    .values('pubdate')[:1]
+                                ),
+                                Value('+00:00'),  # из UTC
+                                Value('+03:00'),  # в МСК
+                                function='CONVERT_TZ'
+                            ),
+                            Value('%d.%m.%Y %H:%i'),
+                            function='DATE_FORMAT',
+                            output_field=CharField()
+                        ),
+                status_order=Case(
+                    When(status__name='Зарегистрирована', then=Value(0)),
+                    When(status__name='Закрыта', then=Value(2)),
+                    default=Value(1),
+                    output_field=IntegerField()
+                )
             )
 
         # Фильтрация по "только мои"
         if request.GET.get('mine') == '1':
             tickets = tickets.filter(engineer=user)
 
+        # Получаем статистику по статусам ДО применения поиска
+        status_stats = (
+            tickets
+            .values('status_id', 'status__name')
+            .annotate(count=Count('id'))
+            .order_by('status_id')
+        )
+        ticket_count = tickets.count()
         # Поиск (search box DataTables)
-        search = request.GET.get('search[value]', '').strip()
+        search = request.GET.get('search')
         if search:
             tickets = tickets.filter(
-                Q(problem__icontains=search) |
-                Q(status__name__icontains=search)
+                Q(id__icontains=search) |
+                Q(organization_name__icontains=search) |
+                Q(end_user_organization_name__icontains=search) |
+                Q(equipment_name__icontains=search) |
+                Q(problem__icontains=search)
             )
+        status_ids = request.GET.getlist('status[]')
+        if status_ids:
+            tickets = tickets.filter(status_id__in=status_ids)
+        engineer_id = request.GET.get('engineer')
+        if engineer_id:
+            tickets = tickets.filter(engineer_id=engineer_id)
 
+        ru_months = {
+            'Янв': 'Jan', 'Фев': 'Feb', 'Мар': 'Mar', 'Апр': 'Apr',
+            'Май': 'May', 'Июн': 'Jun', 'Июл': 'Jul', 'Авг': 'Aug',
+            'Сен': 'Sep', 'Окт': 'Oct', 'Ноя': 'Nov', 'Дек': 'Dec'
+        }
+        def replace_ru_month_to_en(date_str):
+            for ru, en in ru_months.items():
+                if ru in date_str:
+                    return date_str.replace(ru, en)
+            return date_str
+        date_range = request.GET.get('date_range')
+        from datetime import datetime, timedelta  # Импортируем timedelta
+        if date_range:
+            try:
+                parts = date_range.split(' — ')
+                date_start_str = replace_ru_month_to_en(parts[0].strip())
+                date_start = datetime.strptime(date_start_str, '%d %b, %Y')
+
+                if len(parts) > 1 and parts[1].strip():
+                    # Конечная дата есть
+                    date_end_str = replace_ru_month_to_en(parts[1].strip())
+                    date_end = datetime.strptime(date_end_str, '%d %b, %Y')
+                    # включаем весь день
+                    date_end = date_end + timedelta(days=1) - timedelta(seconds=1)
+                else:
+                    # Конечной даты нет — подставляем сейчас
+                    date_end = datetime.now()
+
+                tickets = tickets.filter(pubdate__range=(date_start, date_end))
+
+            except Exception as e:
+                print(f"Ошибка обработки диапазона дат: {e}")
+
+        # Формает параметры order[i][column], order[i][dir], columns[i][data]
+
+        order_by_fields = []
+        i = 0
+        while True:
+            column_index = request.GET.get(f'order[{i}][column]')
+            if column_index is None:
+                break
+            if column_index == '6':
+                column_index = 0
+            dir = request.GET.get(f'order[{i}][dir]', 'asc')
+            if dir == 'default':
+                i += 1
+                continue
+            column_data = request.GET.get(f'columns[{column_index}][data]')
+
+            if column_data:
+                if dir == 'desc':
+                    order_by_fields.append(f'-{column_data}')
+                else:
+                    order_by_fields.append(column_data)
+
+            i += 1
+
+        if order_by_fields:
+            tickets = tickets.order_by(*order_by_fields)
+        else:
+            tickets = tickets.order_by('status_order','-last_change_pubdate')
         # Пагинация (по DataTables параметрам)
         start = int(request.GET.get('start', 0))
         length = int(request.GET.get('length', 10))
@@ -325,7 +469,7 @@ class ApplicationsListAPIViewNew(APIView):
 
         paginator = Paginator(tickets, length)
         page_obj = paginator.get_page(page_number)
-        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'problem', 'description',]
+        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'problem', 'description', 'organization_user_id', 'last_change_date',]
 
         if is_staff:
             fields.extend([
@@ -340,7 +484,9 @@ class ApplicationsListAPIViewNew(APIView):
             'draw': int(request.GET.get('draw', 1)),
             'recordsTotal': paginator.count,
             'recordsFiltered': paginator.count,
-            'data': data
+            'data': data,
+            'statusStats': list(status_stats),
+            'ticketCount': ticket_count
         })
 
 class ApplicationsExcelAPIView(APIView):
@@ -686,7 +832,17 @@ class AddApplicationAPIView(APIView): #Создание заявки
                         default = Value(''), output_field = CharField())
                     )\
                 .values('id', 'organization_name', 'name')
-            data['clients'] = clients
+            #убираем дубли по     organization_name
+            seen = set()
+            unique_clients = []
+
+            for client in clients:
+                org_name = client['organization_name']
+                if org_name not in seen:
+                    seen.add(org_name)
+                    unique_clients.append(client)
+
+            data['clients'] = unique_clients
 
         return Response(data, status = status.HTTP_200_OK)
 
@@ -853,14 +1009,26 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         application = ApplicationModel.objects.get(id = application_id)
         data = request.data.copy()
 
-        if data['equipment'] != application.equipment_id:
+        if data.get('equipment_str'):
+            # Разделяем строку и получаем серийный номер
+            eq_list = data.get('equipment_str')[0:-1].split(' (S/n: ')
+            try:
+                # Пытаемся найти оборудование по серийному номеру
+                data['equipment'] = ContractEquipmentModel.objects.get(sn=eq_list[1]).id
+            except ContractEquipmentModel.DoesNotExist:
+                return Response({'message': 'Оборудование не найдено по серийному номеру'}, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+        if int(data['equipment']) != application.equipment_id:
+
             if application.changed:
                 data['equipment'] = application.equipment_id
-            else:
-                equipments = GetClientsEquipmentsAPIView().get(request, client_id = application.client_id).data
-                equipment = next((equip for equip in equipments['equipments'] if equip['id'] == data['equipment']), None)
-                if not equipment:
-                    return Response({'message': 'Оборудование указано некорректно'}, status = status.HTTP_406_NOT_ACCEPTABLE)
+
+            #else:
+            #    equipments = GetClientsEquipmentsAPIView().get(request, client_id = application.client_id).data
+            #    equipment = next((equip for equip in equipments['equipments'] if equip['id'] == int(data['equipment'])), None)
+            #    return Response({'message': 'Оборудование указано некорректно1' + equipment }, status = status.HTTP_406_NOT_ACCEPTABLE)
+            #    if not equipment:
+            #        return Response({'message': 'Оборудование указано некорректно' + equipments['equipments'] }, status = status.HTTP_406_NOT_ACCEPTABLE)
 
         if application.status_id == 1 and 'engineer' in data and data['engineer']:
             data['status'] = 6
@@ -872,48 +1040,49 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'status': '',
             'type': 'edit'
         }
-        if application.engineer or data['engineer']:
-            engineer_id = application.engineer_id if application.engineer_id else data['engineer']
+        if application.engineer or data.get('engineer'):
+            engineer_id = application.engineer_id if application.engineer_id else data.get('engineer')
 
             User = get_user_model()
             engineer = User.objects.get(id = engineer_id)
             engineer_email = engineer.email
-
+        app_status_name = ''
         if application.status_id != data['status']:
             app_status = StatusModel.objects.get(id = data['status'])
-            history.append({'type': 1, 'text': 'Статус заявки изменен на "' + app_status.name + '"', 'application': application, 'author': request.user})
+            app_status_name = app_status.mame
+            history.append({'type': 1, 'text': 'Статус заявки изменен на "' + app_status_name + '"', 'application': application, 'author': request.user})
 
             AppStatusModel.objects.create(application_id = application_id, status_id = data['status'])
 
             contact_email = application.contact.email
             params['status'] = app_status
             if send_email(params = params, title = 'Изменение статуса заявки', send_to = [contact_email]):
-                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status.name + '" на адрес электронной почты ' + contact_email
+                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status_name + '" на адрес электронной почты ' + contact_email
             else:
-                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status.name + '" на адрес электронной почты ' + contact_email
+                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status_name + '" на адрес электронной почты ' + contact_email
             history.append({'type': 3, 'text': text, 'application': application, 'author': request.user})
 
             if send_telegram(params = params):
-                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status.name + '" в телеграм-канал'
+                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status_name + '" в телеграм-канал'
             else:
-                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status.name + '" в телеграм-канал'
+                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status_name + '" в телеграм-канал'
             history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
             if application.engineer or data['engineer']:
                 params['type'] = 'status'
 
                 if send_email(params = params, title = 'Изменение статуса заявки', send_to = [engineer_email]):
-                    text = 'Отправлено сообщение об изменении статуса заявки "' + app_status.name + '" на адрес электронной почты ' + engineer_email
+                    text = 'Отправлено сообщение об изменении статуса заявки "' + app_status_name + '" на адрес электронной почты ' + engineer_email
                 else:
-                    text = 'Не удалось отправить сообщение об изменении статуса заявки "' + app_status.name + '" на адрес электронной почты ' + engineer_email
+                    text = 'Не удалось отправить сообщение об изменении статуса заявки "' + app_status_name + '" на адрес электронной почты ' + engineer_email
 
                 history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
-        if application.priority_id != data['priority']:
-            app_priority = AppPriorityModel.objects.get(id = data['priority'])
+        if application.priority_id != int(data['priority']):
+            app_priority = AppPriorityModel.objects.get(id = int(data['priority']))
             history.append({'type': 2, 'text': 'Изменен приоритет заявки на "' + app_priority.name + '"', 'application': application, 'author': request.user})
 
-            if application.engineer or data['engineer']:
+            if application.engineer or data.get('engineer'):
                 params['type'] = 'priority'
                 params['status'] = app_priority
                 if send_email(params = params, title = 'Изменение приоритета заявки', send_to = [engineer_email]):
@@ -923,9 +1092,9 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
                 history.append({'type': 3, 'text': text, 'application': application, 'author': request.user})
 
                 if send_telegram(params = params):
-                    text = 'Отправлено сообщение об изменении приоритета заявки на "' + app_status.name + '" в телеграм-канал'
+                    text = 'Отправлено сообщение об изменении приоритета заявки на "' + app_status_name + '" в телеграм-канал'
                 else:
-                    text = 'Не удалось отправить сообщение об изменении приоритета заявки на "' + app_status.name + '" в телеграм-канал'
+                    text = 'Не удалось отправить сообщение об изменении приоритета заявки на "' + app_status_name + '" в телеграм-канал'
                 history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
         if 'engineer' in data and not application.engineer:

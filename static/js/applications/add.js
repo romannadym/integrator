@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function(){
       csrftoken = getCookie('csrftoken');
 
     fData.set('equipment', equipment_id);
-    console.log(fData.getAll('documents'));
+
 
     fetch(form.getAttribute('action'), {
       method: 'POST',
@@ -212,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function(){
         modal_text.innerHTML = '<p class="align-center">Заявка принята в работу. Спасибо, что Вы с нами!</p><p class="align-center">С уважением, команда xCloud</p>';
         modal.style.display = "block";
         modal_close.addEventListener('click', function(){
+
           window.location.replace(document.getElementById("back").value);
         });
 		  })

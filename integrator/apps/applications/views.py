@@ -70,70 +70,152 @@ def AddApplicationView(request): #Создание заявки
         from applications.models import AppStatusModel
 
         if form.is_valid():
-            app = form.save(commit = False)
+            app = form.save(commit=False)
 
-            if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
+            # Установка полей на основе групп пользователя
+            if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
                 app.client = request.user
-            if request.user.groups.filter(name = 'Инженер').exists():
+            if request.user.groups.filter(name='Инженер').exists():
                 app.engineer = request.user
-                app.status = StatusModel.objects.get(id = 6)
+                app.status = StatusModel.objects.get(id=6)
             else:
-                app.status = StatusModel.objects.get(id = 1)
+                app.status = StatusModel.objects.get(id=1)
+
             app.creator = request.user
+
+            # Разбор оборудования
             eq_list = request.POST.get('equipment')[0:-1].split(' (S/n: ')
-            app.equipment = ContractEquipmentModel.objects.get(sn = eq_list[1])
-            doc_formset = AppDocumentsFormset(request.POST, request.FILES, instance = app)
+            app.equipment = ContractEquipmentModel.objects.get(sn=eq_list[1])
 
-            if doc_formset.is_valid():
-                app.save()
-                doc_formset.save()
-                AppStatusModel.objects.create(status = app.status, application = app)
-                AppHistoryModel.objects.create(type = 1, text = 'Заявка создана, присвоен статус "' + str(app.status) + '"', application = app, author = request.user)
+            app.save()  # Сохраняем заявку перед связью с файлами
 
-                from django.template.loader import render_to_string
-                from django.core.mail import EmailMessage
-                import telegram
+            # Перемещение временных файлов в модель AppDocumentModel
+            import json
+            from django.core.files.base import File
+            from applications.models import AppDocumentsModel  # если модель называется по-другому — подставь нужну
+            uploaded_files_raw = request.POST.get('uploaded_files', '[]')
+            if uploaded_files_raw:
+                uploaded_file_ids = json.loads(uploaded_files_raw)
+                for file_id in uploaded_file_ids:
+                    temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
+                    if os.path.exists(temp_file_path):
+                        filename_with_uuid = os.path.basename(file_id)
+                        parts = filename_with_uuid.split('_', 1)
+                        original_filename = parts[1] if len(parts) > 1 else filename_with_uuid
 
-                text = render_to_string('applications/mail.html', {'id': app.id, 'url': request.build_absolute_uri(app.get_absolute_url()), 'type': 'add'})
+                        doc = AppDocumentsModel(application=app, name=original_filename)
+                        with open(temp_file_path, 'rb') as f:
+                            doc.document.save(original_filename, File(f), save=True)
+                        os.remove(temp_file_path)
 
-                mail = EmailMessage('Создание заявки № ' + str(app.id), text, settings.EMAIL_HOST_USER, [app.contact.email])
+            # Создание статуса и истории
+            AppStatusModel.objects.create(status=app.status, application=app)
+            AppHistoryModel.objects.create(
+                type=1,
+                text='Заявка создана, присвоен статус "' + str(app.status) + '"',
+                application=app,
+                author=request.user
+            )
+
+            # Отправка email клиенту
+            from django.template.loader import render_to_string
+            from django.core.mail import EmailMessage
+            import telegram
+
+            text = render_to_string('applications/mail.html', {
+                'id': app.id,
+                'url': request.build_absolute_uri(app.get_absolute_url()),
+                'type': 'add'
+            })
+
+            mail = EmailMessage(
+                'Создание заявки № ' + str(app.id),
+                text,
+                settings.EMAIL_HOST_USER,
+                [app.contact.email]
+            )
+            mail.content_subtype = "html"
+            try:
+                mail.send()
+            except Exception:
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Не удалось отправить сообщение о создании заявки на адрес {app.contact.email}',
+                    application=app,
+                    author=request.user
+                )
+            else:
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Отправлено сообщение о создании заявки на адрес {app.contact.email}',
+                    application=app,
+                    author=request.user
+                )
+
+            # Отправка email инженеру
+            if app.status.id == 6:
+                text = render_to_string('applications/mail.html', {
+                    'id': app.id,
+                    'url': request.build_absolute_uri(app.get_absolute_url()),
+                    'status': app.engineer,
+                    'type': 'engineer'
+                })
+                mail = EmailMessage(
+                    'Назначен инженер',
+                    text,
+                    settings.EMAIL_HOST_USER,
+                    [app.engineer.email]
+                )
                 mail.content_subtype = "html"
                 try:
                     mail.send()
                 except Exception:
-                    AppHistoryModel.objects.create(type = 3, text = 'Не удалось отправить сообщение о создании заявки на адрес электронной почты ' + app.contact.email, application = app, author = request.user)
+                    AppHistoryModel.objects.create(
+                        type=4,
+                        text=f'Не удалось отправить сообщение о назначении инженера "{app.engineer}" на адрес {app.engineer.email}',
+                        application=app,
+                        author=request.user
+                    )
                 else:
-                    AppHistoryModel.objects.create(type = 3, text = 'Отправлено сообщение о создании заявки на адрес электронной почты ' + app.contact.email, application = app, author = request.user)
+                    AppHistoryModel.objects.create(
+                        type=4,
+                        text=f'Отправлено сообщение о назначении инженера "{app.engineer}" на адрес {app.engineer.email}',
+                        application=app,
+                        author=request.user
+                    )
 
-                if app.status.id == 6: # Сообщение инженеру
-                    text = render_to_string('applications/mail.html', {'id': app.id, 'url': request.build_absolute_uri(app.get_absolute_url()), 'status': app.engineer, 'type': 'engineer'})
-                    mail = EmailMessage('Назначен инженер', text, settings.EMAIL_HOST_USER, [app.engineer.email])
-                    mail.content_subtype = "html"
-                    try:
-                        mail.send()
-                    except Exception:
-                        AppHistoryModel.objects.create(type = 4, text = 'Не удалось отправить сообщение о назначении инженера "' + str(app.engineer) + '" на адрес электронной почты ' + app.engineer.email, application = app, author = request.user)
-                    else:
-                        AppHistoryModel.objects.create(type = 4, text = 'Отправлено сообщение о назначении инженера "' + str(app.engineer) + '" на адрес электронной почты ' + app.engineer.email, application = app, author = request.user)
-
-                text = render_to_string('applications/telegram.html', {'id': app.id, 'url': request.build_absolute_uri(app.get_absolute_url()), 'type': 'add'})
-                telegram_settings = settings.TELEGRAM
-                bot = telegram.Bot(token = telegram_settings['bot_token'])
-                try:
-                    bot.send_message(chat_id = telegram_settings['channel_id'], text = text, parse_mode = telegram.ParseMode.HTML)
-                except Exception:
-                    AppHistoryModel.objects.create(type = 4, text = 'Не удалось отправить сообщение о создании заявки в телеграм-канал', application = app, author = request.user)
-                else:
-                    AppHistoryModel.objects.create(type = 4, text = 'Отправлено сообщение о создании заявки в телеграм-канал', application = app, author = request.user)
-
-                return JsonResponse({'message': 1})
+            # Telegram уведомление
+            text = render_to_string('applications/telegram.html', {
+                'id': app.id,
+                'url': request.build_absolute_uri(app.get_absolute_url()),
+                'type': 'add'
+            })
+            telegram_settings = settings.TELEGRAM
+            bot = telegram.Bot(token=telegram_settings['bot_token'])
+            try:
+                bot.send_message(
+                    chat_id=telegram_settings['channel_id'],
+                    text=text,
+                    parse_mode=telegram.ParseMode.HTML
+                )
+            except Exception:
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text='Не удалось отправить сообщение о создании заявки в телеграм-канал',
+                    application=app,
+                    author=request.user
+                )
             else:
-                error_text = {}
-                for doc in doc_formset:
-                    if not doc.is_valid():
-                        error_text[request.FILES[doc.prefix + '-document'].name] = doc.errors['document']
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text='Отправлено сообщение о создании заявки в телеграм-канал',
+                    application=app,
+                    author=request.user
+                )
 
-                return JsonResponse(error_text)
+            return JsonResponse({'message': 1})
+        else:
+            return JsonResponse({'error': 'Форма заявки не прошла валидацию'})
 
     if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
         context = {'form': form, 'doc_formset': doc_formset, 'show': False}
@@ -1064,7 +1146,7 @@ def TestView(request):
 @login_required
 def ListApplicationView(request): #Список заявок
     context = ApplicationsListAPIView().as_view()(request = request, page = 1).data
-    return render(request, 'applications/list.html', context)
+    return render(request, 'applications/list/list.html', context)
 
 @login_required
 @permission_required('applications.add_applicationmodel')

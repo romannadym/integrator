@@ -23,7 +23,7 @@
     {% block pagecss %}{% endblock %}
     <!-- Sweet Alert css-->
     <link href="{% static 'assets/libs/sweetalert2/sweetalert2.min.css' %}" rel="stylesheet" type="text/css" />
-
+    <link href="{% static 'assets/js/pages/plugins/select2.min.css' %}" rel="stylesheet" />
     <!-- Layout config Js -->
     <script src="{% static 'assets/js/layout.js' %}"></script>
     <!-- Bootstrap Css -->
@@ -33,6 +33,8 @@
     <!-- App Css-->
     <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" />
     <!-- custom Css--> <link href="{% static 'assets/css/custom.min.css' %}" rel="stylesheet" type="text/css" />
+    <script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}" crossorigin="anonymous"></script>
+
 
 </head>
 
@@ -46,7 +48,7 @@
     <!-- Left Sidebar End -->
     <!-- Vertical Overlay-->
     <div class="vertical-overlay"></div>
-    
+
     <!-- ============================================================== -->
     <!-- Start right Content here -->
     <!-- ============================================================== -->
@@ -76,7 +78,7 @@
           </div>
           <!-- End Page-content -->
 
-       
+
       <!-- end main content-->
 
   </div>
@@ -87,14 +89,13 @@
  <script src="{% static 'assets/libs/simplebar/simplebar.min.js' %}"></script>
  <script src="{% static 'assets/libs/node-waves/waves.min.js' %}"></script>
  <script src="{% static 'assets/libs/feather-icons/feather.min.js' %}"></script>
- <script src="{% static 'assets/js/pages/plugins/lord-icon-2.1.0.js' %}"></script>
  <script>
    const choicesScript = "{% static 'assets/libs/choices.js/public/assets/scripts/choices.min.js' %}";
    const flatpickrScript = "{% static 'assets/libs/flatpickr/flatpickr.min.js' %}";
  </script>
  <script src="{% static 'assets/js/plugins.js' %}"></script>
  <!-- list.js min js -->
-<script src="{% static 'assets/libs/list.js/list.min.js' %}""></script>
+<script src="{% static 'assets/libs/list.js/list.min.js' %}"></script>
 
 <!--list pagination js-->
 <script src="{% static 'assets/libs/list.pagination.js/list.pagination.min.js' %}""></script>
@@ -106,8 +107,8 @@
  <!-- App js -->
  <script src="{% static 'assets/js/app.js' %}"></script>
 
- 
-  
+
+
 </body>
 
 </html>

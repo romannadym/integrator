@@ -11,7 +11,7 @@
                   </span>
               </button>
 
-            
+
           </div>
 
           <div class="d-flex align-items-center">
@@ -23,12 +23,12 @@
               </div>
 
               <div class="ms-1 header-item d-none d-sm-flex">
-                  <button type="button" class="btn btn-icon btn-topbar btn-ghost-secondary rounded-circle light-dark-mode">
+                  <button type="button" class="btn btn-icon btn-topbar btn-ghost-secondary rounded-circle light-dark-mode" id="theme-toggle">
                       <i class='bx bx-moon fs-22'></i>
                   </button>
               </div>
 
-           
+
 
               <div class="dropdown ms-sm-3 header-item topbar-user">
                   <button type="button" class="btn" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -43,9 +43,8 @@
                   <div class="dropdown-menu dropdown-menu-end">
                       <!-- item-->
                       <h6 class="dropdown-header">Welcome  {{ user.first_name }} {{ user.last_name }}</h6>
-                      <a class="dropdown-item" href="pages-profile-settings.html"><span class="badge bg-success-subtle text-success mt-1 float-end">New</span><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
-                      <a class="dropdown-item" href="auth-lockscreen-basic.html"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
-                      <a class="dropdown-item" href="auth-logout-basic.html"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Logout</span></a>
+                      <a class="dropdown-item" href="pages-profile-settings.html"><span class="badge bg-success-subtle text-success mt-1 float-end">New</span><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Настройки</span></a>
+                      <a class="dropdown-item" href="{% url 'api-login' %}"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Выход</span></a>
                   </div>
               </div>
           </div>
@@ -62,7 +61,7 @@
           </div>
           <div class="modal-body">
               <div class="mt-2 text-center">
-                  <lord-icon src="https://cdn.lordicon.com/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>
+                  <lord-icon src="/static/assets/json/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>
                   <div class="mt-4 pt-2 fs-15 mx-4 mx-sm-5">
                       <h4>Are you sure ?</h4>
                       <p class="text-muted mx-4 mb-0">Are you sure you want to remove this Notification ?</p>
@@ -77,3 +76,21 @@
       </div><!-- /.modal-content -->
   </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
+<script>
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('theme', theme);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+});
+
+document.getElementById('theme-toggle').addEventListener('click', function() {
+    const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    setTheme(currentTheme);
+});
+
+</script>

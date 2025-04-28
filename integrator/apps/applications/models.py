@@ -122,10 +122,10 @@ class AppDocumentsModel(models.Model):
 
     def __str__(self):
         return self.name
-
+    import os
     def save(self, *args, **kwargs):
         if not self.name:
-            self.name = self.document.name
+            self.name = os.path.basename(self.document.name)
         super().save(*args, **kwargs)
 
 class AppStatusModel(models.Model):

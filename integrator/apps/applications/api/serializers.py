@@ -115,7 +115,7 @@ class EditAppSpareSerializer(serializers.ModelSerializer):
 class EditApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApplicationModel
-        fields = ['engineer', 'priority', 'status', 'equipment']
+        fields = ['engineer', 'priority', 'status', 'equipment', 'problem']
 
 class AddAppDocumentsSerializer(serializers.ModelSerializer):
     documents = AppDocumentsSerializer(many = True, required = False)

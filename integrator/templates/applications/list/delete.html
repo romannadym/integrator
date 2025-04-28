@@ -1,0 +1,139 @@
+{% load static %}
+<div class="modal fade flip" id="deleteOrder" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body p-5 text-center">
+                <lord-icon src="{% static 'assets/json/gsqxdxog.json' %}" trigger="loop" colors="primary:#405189,secondary:#f06548" style="width:90px;height:90px"></lord-icon>
+                <div class="mt-4 text-center">
+                    <h4 id="delId"></h4>
+                    <p class="text-muted fs-14 mb-4">Удаление вашей задачи приведет к удалению всей вашей информации из нашей базы данных.</p>
+                    <div class="hstack gap-2 justify-content-center remove">
+                        <button class="btn btn-link btn-ghost-success fw-medium text-decoration-none" id="deleteRecord-close" data-bs-dismiss="modal"><i class="ri-close-line me-1 align-middle"></i>Отмена</button>
+                        <button class="btn btn-danger" id="delete-record">Да, Удалить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function () {
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            document.cookie.split(';').forEach(cookie => {
+                cookie = cookie.trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                }
+            });
+        }
+        return cookieValue;
+    }
+
+    $('#deleteOrder').on('show.bs.modal', function (event) {
+       const button = $(event.relatedTarget); // Кнопка, что вызвала модал
+       const itemId = button.data('deleteId');      // Получаем data-id
+
+       const modal = $(this);
+
+          // Если хочешь вставить ID в заголовок или текст:
+          modal.find('h4').text(`Вы собираетесь удалить заявку #${itemId}?`);
+
+
+
+          $('#delete-record').off('click').on('click', () => {
+            // Блокируем кнопку отправки
+            let submitButton = $('#delete-record'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+            submitButton.prop('disabled', true);
+            // Сохраняем текст, если надо восстановить потом
+            let originalText = submitButton.html();
+
+            // Блокируем и добавляем фиксированные размеры
+            let buttonWidth = submitButton.outerWidth();
+            let buttonHeight = submitButton.outerHeight();
+
+            submitButton.prop('disabled', true).css({
+              width: buttonWidth,
+              height: buttonHeight
+            }).html(`
+              <span class="d-flex justify-content-center align-items-center w-100 h-100">
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              </span>
+            `);
+            deleteApplication(itemId, modal, submitButton, ticketTable, originalText)
+          });
+
+        })
+
+        function deleteApplication(itemId, modal, submitButton, ticketTable, originalText) {
+            $.ajax({
+                url: `/applications/api/edit/${itemId}`,
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                statusCode: {
+                    200: function(data) {
+                        modal.modal('hide');
+                        alertSuccess(`Заявка #${itemId} удалена!`);
+                        $('.delete-ticket-success').on('click', () => ticketTable.ajax.reload(null, false));
+                    },
+                    404: function() {
+                        alertError("Заявка не найдена!");
+                    },
+                    403: function(data) {
+                        alertError(data.message);
+                    },
+                    500: function() {
+                        alertError("Ошибка сервера 500!");
+                    }
+                },
+                complete: function () {
+                  submitButton.prop('disabled', false);
+                  submitButton.html(originalText); // Восстанавливаем текст кнопки
+                }
+            });
+        }
+
+        function alertSuccess (text)
+        {
+          Swal.fire({
+              html: '<div class="mt-3">' +
+                  '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+                  '<div class="mt-4 pt-2 fs-15">' +
+                  '<h4>Успех !</h4>' +
+                  `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                  '</div>' +
+                  '</div>',
+              showCancelButton: true,
+              showConfirmButton: false,
+              cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-ticket-success',
+              cancelButtonText: 'Oк',
+              buttonsStyling: false,
+              showCloseButton: true
+          })
+        }
+        function alertError(text){
+          Swal.fire({
+              html: '<div class="mt-3">' +
+                  '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+                  '<div class="mt-4 pt-2 fs-15">' +
+                  '<h4>Упс...! Что то пошло не так!</h4>' +
+                  `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                  '</div>' +
+                  '</div>',
+              showCancelButton: true,
+              showConfirmButton: false,
+              cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-ticket-error',
+              cancelButtonText: 'Закрыть',
+              buttonsStyling: false,
+              showCloseButton: true
+          })
+        }
+
+      })
+
+</script>

@@ -1,0 +1,143 @@
+{% load static %}
+<div class="row">
+    <div class="col-xxl-3 col-sm-6">
+        <div class="card card-animate">
+            <div class="card-body" style="cursor: pointer;" onclick="DashbordFilter(1)">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <p class="fw-medium text-muted mb-0">Новые заяки</p>
+                        <h2 class="mt-4 ff-secondary fw-semibold"><span class="counter-value"id="new-count" data-target="100">0</span></h2>
+                        <!--<p class="mb-0 text-muted"><span class="badge bg-light text-success mb-0"> <i class="ri-arrow-up-line align-middle"></i> 1.09 % </span> vs. previous month</p>-->
+                    </div>
+                    <div>
+                        <div class="avatar-sm flex-shrink-0">
+                            <span class="avatar-title bg-info-subtle text-info rounded-circle fs-4">
+                                <i class="ri-file-add-line"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end card body -->
+        </div>
+    </div>
+    <!--end col-->
+    <div class="col-xxl-3 col-sm-6">
+        <div class="card card-animate">
+            <div class="card-body" style="cursor: pointer;" onclick="DashbordFilter(6)">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <p class="fw-medium text-muted mb-0">В работе</p>
+                        <h2 class="mt-4 ff-secondary fw-semibold"><span class="counter-value" id="inprogress-count" data-target="300">0</span></h2>
+                    <!--    <p class="mb-0 text-muted"><span class="badge bg-light text-success mb-0"> <i class="ri-arrow-up-line align-middle"></i> 17.32 % </span> vs. previous month</p>-->
+                    </div>
+                    <div>
+                        <div class="avatar-sm flex-shrink-0">
+                            <span class="avatar-title bg-info-subtle text-info rounded-circle fs-4">
+                                <i class="ri-ticket-2-line"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end card body -->
+        </div> <!-- end card-->
+    </div>
+    <!--end col-->
+    <div class="col-xxl-3 col-sm-6">
+        <div class="card card-animate">
+            <div class="card-body" style="cursor: pointer;" onclick="DashbordFilter(2)">
+
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <p class="fw-medium text-muted mb-0">Ожидание ЗИП</p>
+                        <h2 class="mt-4 ff-secondary fw-semibold"><span class="counter-value" id="waiting-count" data-target="124">0</span></h2>
+                    <!--    <p class="mb-0 text-muted"><span class="badge bg-light text-danger mb-0"> <i class="ri-arrow-down-line align-middle"></i> 0.96 % </span> vs. previous month</p>-->
+                    </div>
+                    <div>
+                        <div class="avatar-sm flex-shrink-0">
+                            <span class="avatar-title bg-info-subtle text-info rounded-circle fs-4">
+                                <i class="mdi mdi-timer-sand"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end card body -->
+        </div>
+    </div>
+    <!--end col-->
+    <div class="col-xxl-3 col-sm-6">
+        <div class="card card-animate">
+            <div class="card-body" style="cursor: pointer;" onclick="DashbordFilter(3)">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <p class="fw-medium text-muted mb-0">Согласование закрытия</p>
+                        <h2 class="mt-4 ff-secondary fw-semibold"><span class="counter-value" id="waiting-closed-count" data-target="107">0</span></h2>
+                      <!--  <p class="mb-0 text-muted"><span class="badge bg-light text-danger mb-0"> <i class="ri-arrow-down-line align-middle"></i> 3.87 % </span> vs. previous month</p>-->
+                    </div>
+                    <div>
+                        <div class="avatar-sm flex-shrink-0">
+                            <span class="avatar-title bg-info-subtle text-info rounded-circle fs-4">
+                                <i class="ri-lock-line"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end card body -->
+        </div>
+    </div>
+    <!--end col-->
+
+</div>
+<!--end row-->
+<script type="text/javascript">
+  function DashbordFilter(id){
+    $('#idStatus').val(null).trigger('change');
+
+    // Потом выбираем нужные значения по их value
+    $('#idStatus').val([id]).trigger('change');
+
+    SearchData();
+  }
+  $(document).ready(function() {
+
+    $.ajax({
+        url: '/applications/api/listnew/',
+        type: 'GET',
+        success: function(data) {
+          if(data.statusStats)
+          {
+            console.log(data.statusStats)
+            data.statusStats.forEach(function(item) {
+              if(item.status_id == 2){
+                $('#waiting-count').attr('data-target', item.count)
+                if (item.count >= 1000) {
+                  $('#waiting-count').parent().append('k')
+                }
+              }
+              if(item.status_id == 3){
+                $('#waiting-closed-count').attr('data-target', item.count)
+                if (item.count >= 1000) {
+                  $('#closed-count').parent().append('k')
+                }
+              }
+              if(item.status_id == 1){
+                $('#new-count').attr('data-target', item.count)
+                if (item.count >= 1000) {
+                  $('#new-count').parent().append('k')
+                }
+              }
+              if(item.status_id == 6){
+                $('#inprogress-count').attr('data-target', item.count)
+                if (item.count >= 1000) {
+                  $('#total-count').parent().append('k')
+                }
+              }
+            });
+          }
+
+          //  $('#closed-count').attr('data-target', data.closed_count).text(formatNumber(data.closed_count));
+
+        }
+    });
+  });
+
+</script>

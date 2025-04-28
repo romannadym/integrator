@@ -1,0 +1,359 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalCreateTicket" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Создание заявки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data" class="tablelist-form" autocomplete="off" id="create-ticket-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" id="tasksId" />
+                    <div class="row g-3">
+                      <div class="col-lg-12">
+                          <h6 class="fw-semibold">Заказчик</h6>
+                          <select class="js-example-basic-single" name="client" id="id_client" required>
+                              <option value=""></option>
+                          </select>
+                      </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Приоритет заявки:</h6>
+                            <select class="js-example-basic-single" name="priority" id="id_priority" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Оборудование:</h6>
+                            <select class="js-example-basic-single" name="equipment" id="id_equipment" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Описание проблемы:</h6>
+                            <textarea class="form-control" name="problem" id="problem-field" rows="3" required></textarea>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Контактное лицо:</h6>
+                            <select class="js-example-basic-single" name="contact" id="id_contact" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">Файлы</h6>
+                                </div><!-- end card header -->
+
+                                <div class="card-body">
+                                      <p class="text-muted">Возможна загрузка только текстовых форматов, архивов, изображений.<br>Размер одного загружаемого файла не должен превышать 50 мегабайт</p>
+                                    <input type="file" class="filepond filepond-input-multiple" multiple name="filepond" data-allow-reorder="true" data-max-file-size="50MB" data-max-files="50">
+                                    <input type="hidden" name="uploaded_files" id="uploaded-files">
+                                </div>
+                                <!-- end card body -->
+                            </div>
+                            <!-- end card -->
+                        </div> <!-- end col -->
+
+                    </div>
+                    <!--end row-->
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="submit" class="btn btn-success" id="add-btn">Создать</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+                <input type="hidden" name="documents-TOTAL_FORMS" value="1" id="id_documents-TOTAL_FORMS">
+                <input type="hidden" name="documents-INITIAL_FORMS" value="0" id="id_documents-INITIAL_FORMS">
+                <input type="hidden" name="documents-MIN_NUM_FORMS" value="0" id="id_documents-MIN_NUM_FORMS">
+                <input type="hidden" name="documents-MAX_NUM_FORMS" value="1000" id="id_documents-MAX_NUM_FORMS">
+            </form>
+        </div>
+    </div>
+</div>
+<!--end modal-->
+
+<script type="text/javascript">
+    $(document).ready(function () {
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              document.cookie.split(';').forEach(cookie => {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                  }
+              });
+          }
+          return cookieValue;
+      }
+
+
+
+      $('#create-ticket-form').on('submit', function(evn) {
+          evn.preventDefault();
+
+          // Блокируем кнопку отправки
+          let submitButton = $('#add-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+          submitButton.prop('disabled', true);
+          // Сохраняем текст, если надо восстановить потом
+          let originalText = submitButton.html();
+
+          // Блокируем и добавляем фиксированные размеры
+          let buttonWidth = submitButton.outerWidth();
+          let buttonHeight = submitButton.outerHeight();
+
+          submitButton.prop('disabled', true).css({
+            width: buttonWidth,
+            height: buttonHeight
+          }).html(`
+            <span class="d-flex justify-content-center align-items-center w-100 h-100">
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            </span>
+          `);
+          let formData = new FormData(this);
+          $.ajax({
+              url: '/applications/add/',
+              method: 'POST',
+              data: formData,
+              headers: { 'X-CSRFToken': getCookie('csrftoken') },
+              processData: false,
+              contentType: false,
+              dataType: 'json',
+              success: function(data) {
+                  if (data.message == 1) {
+                    alertSuccess('Заявка принята в работу. Спасибо, что Вы с нами!<br>С уважением, команда xCloud')
+                    $('.create-ticket-success').on('click', () => window.location.reload());
+
+                  } else {
+                    let errorText = Object.entries(data).map(([field, msg]) => `<p>"${field}" - ${msg[0]}</p>`).join('');
+                    alertError(data.error)
+                  }
+              },
+              error: function(e) {
+                console.log(e)
+                let error = '';
+                if(e.status){
+                  error = 'Статус ошибки - ' + e.status;
+                }
+                alertError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+              },
+              complete: function() {
+                  // Разблокируем кнопку после завершения запроса
+                  submitButton.prop('disabled', false);
+                  submitButton.html('Создать'); // Восстанавливаем текст кнопки
+              }
+          });
+      });
+
+      $.ajax({
+          url: '/applications/api/add/',
+          type: 'GET',
+          success: function(data) {
+            if(data.clients){
+              data.clients.forEach(function(item) {
+                  $('#id_client').append(`<option value="${item.id}">${item.organization_name}</option>`)
+              })
+            }
+
+            if(data.priorities){
+              data.priorities.forEach(function(item) {
+                  const selected = item.id === 3 ? 'selected' : '';
+                  $('#id_priority').append(`<option value="${item.id}" ${selected}>${item.name}</option>`)
+              })
+            }
+          }
+      });
+
+      $('#id_client').on('change', function() {
+              let client_id = $(this).val();  // сохраняем значение заранее
+              if(!client_id){
+                return
+              }
+              $.ajax({
+                  url: '/applications/get_contacts/',
+                  method: 'POST',
+                  headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                  data: { client: client_id },
+                  dataType: 'json',
+                  success: function(result) {
+                    $('#id_contact').empty()
+                      if(Array.isArray(result) && result.length > 0){
+                        result.forEach(function (item){
+                          $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
+                        })
+                        $('#id_contact').val(result[0].id)
+
+                      }
+                      EquipmentList(client_id)
+                  }
+              });
+      });
+
+      function EquipmentList(client_id) {
+          if ( !client_id) return;
+
+          $.ajax({
+              url: '/applications/add/',
+              method: 'POST',
+              data: { client: client_id, sn: '' },
+              headers: { 'X-CSRFToken': getCookie('csrftoken') },
+              dataType: 'json',
+              success: function(result) {
+                  $('#id_equipment').empty()
+                  result.forEach(function (item){
+                    let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`
+                    $('#id_equipment').append(`<option value="${equipment}" >${equipment}</option>`)
+                  })
+              }
+          });
+      }
+
+      $('#id_client').select2({
+        dropdownParent: $('#showModalCreateTicket'),
+        placeholder: "-------"
+      });
+
+      $('#id_priority').select2({
+        dropdownParent: $('#showModalCreateTicket'),
+        placeholder: "-------"
+      });
+
+      $('#id_equipment').select2({
+        dropdownParent: $('#showModalCreateTicket'),
+        placeholder: "-------"
+      });
+
+      $('#id_contact').select2({
+        dropdownParent: $('#showModalCreateTicket'),
+        placeholder: "-------"
+      });
+
+      $('#showModalCreateTicket').on('hidden.bs.modal', function () {
+          // Очищаем обычные поля input и textarea
+          $(this).find('form')[0].reset();
+
+          // Очищаем Select2 поля
+          $('#id_client').val(null).trigger('change');
+          $('#id_priority').val(3).trigger('change');
+          $('#id_equipment').val(null).trigger('change');
+          $('#id_contact').val(null).trigger('change');
+          // Очистка временных файлов
+          if (uploadedFiles.length > 0) {
+              fetch('/applications/api/clear-temp/', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCookie('csrftoken'),
+                  },
+                  body: JSON.stringify({ files: uploadedFiles })
+              }).then(() => {
+                  uploadedFiles = []; // сбросим массив
+                  document.getElementById("uploaded-files").value = '';
+
+              });
+          }
+          // Очистка FilePond
+          pondInstances.forEach((pond) => pond.removeFiles());
+      });
+      function alertSuccess (text)
+      {
+        Swal.fire({
+            html: '<div class="mt-3">' +
+                '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+                '<div class="mt-4 pt-2 fs-15">' +
+                '<h4>Успех !</h4>' +
+                `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                '</div>' +
+                '</div>',
+            showCancelButton: true,
+            showConfirmButton: false,
+            cancelButtonClass: 'btn btn-primary w-xs mb-1 create-ticket-success',
+            cancelButtonText: 'Oк',
+            buttonsStyling: false,
+            showCloseButton: true
+        })
+      }
+      function alertError(text){
+        Swal.fire({
+            html: '<div class="mt-3">' +
+                '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+                '<div class="mt-4 pt-2 fs-15">' +
+                '<h4>Упс...! Что то пошло не так!</h4>' +
+                `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                '</div>' +
+                '</div>',
+            showCancelButton: true,
+            showConfirmButton: false,
+            cancelButtonClass: 'btn btn-primary w-xs mb-1 create-ticket-error',
+            cancelButtonText: 'Закрыть',
+            buttonsStyling: false,
+            showCloseButton: true
+        })
+      }
+      FilePond.registerPlugin(
+          // encodes the file as base64 data
+          FilePondPluginFileEncode,
+          // validates the size of the file
+          FilePondPluginFileValidateSize,
+          // corrects mobile image orientation
+          FilePondPluginImageExifOrientation,
+          // previews dropped images
+          FilePondPluginImagePreview
+      );
+      var inputMultipleElements = document.querySelectorAll('input.filepond-input-multiple');
+      const pondInstances = []; // <-- добавили
+      var uploadedFiles = [];
+      if(inputMultipleElements){
+      // loop over input elements
+
+      Array.from(inputMultipleElements).forEach(function (inputElement) {
+        FilePond.setOptions({
+          labelIdle: 'Перетащите файл или <span class="filepond--label-action">Выберите</span>',
+          labelMaxFileSizeExceeded: 'Файл слишком большой',
+          labelMaxFileSize: 'Максимальный размер файла: {filesize}',
+          server: {
+            process: {
+                url: '/applications/api/upload/',
+                onload: (res) => {
+                    const result = JSON.parse(res);
+                    uploadedFiles.push(result.id);
+                    document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
+                    return result.id;
+                }
+            },
+            revert: (uniqueFileId, load, error) => {
+                fetch('/applications/api/revert/', {
+                    method: 'DELETE',
+                    body: uniqueFileId,
+                    headers: {
+                      'X-CSRFToken': getCookie('csrftoken')  // для Django CSRF
+                    }
+                }).then(() => {
+                    // Удалить из массива
+                    const index = uploadedFiles.indexOf(uniqueFileId);
+                    if (index > -1) uploadedFiles.splice(index, 1);
+                    document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
+                    load();
+                }).catch(error);
+            },
+            headers: {
+              'X-CSRFToken': getCookie('csrftoken')  // для Django CSRF
+            }
+        }
+          // остальной перевод как выше...
+        });
+          // create a FilePond instance at the input element location
+          const pond = FilePond.create(inputElement); // <-- сохраняем
+          pondInstances.push(pond); // <-- сохраняем
+      })
+      }
+  });
+</script>

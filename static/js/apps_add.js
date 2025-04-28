@@ -173,6 +173,10 @@ $(document).ready(function() {
         }
 
         let formData = new FormData(this);
+        for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    return;
         $.ajax({
             url: '.',
             method: 'POST',
