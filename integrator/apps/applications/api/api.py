@@ -44,9 +44,66 @@ from integrator.apps.api_services import EngineersListAPIView
 from applications.api.serializers import *
 
 from integrator.apps.functions import is_admin_or_engineer, get_prms_from_ids, send_email, send_telegram
-
 from django.core.files.storage import default_storage
 import uuid, json, os
+
+class DocumentUploadAPI(APIView):
+    def post(self, request):
+        # Перемещение временных файлов в модель AppDocumentModel
+        import json
+        from django.core.files.base import File
+        try:
+            application_id = request.data.get('application_id')
+
+            if not application_id:
+                return Response({"error": "Не указан ID заявки"}, status = status.HTTP_400_BAD_REQUEST)
+            uploaded_files_raw = request.data.get('uploaded_files', '[]')
+            # Получаем объект заявки
+            application = ApplicationModel.objects.get(id=application_id)
+            if uploaded_files_raw:
+                uploaded_file_ids = json.loads(uploaded_files_raw)
+                for file_id in uploaded_file_ids:
+                    temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
+                    if os.path.exists(temp_file_path):
+                        filename_with_uuid = os.path.basename(file_id)
+                        parts = filename_with_uuid.split('_', 1)
+                        original_filename = parts[1] if len(parts) > 1 else filename_with_uuid
+
+                        doc = AppDocumentsModel(application=application, name=original_filename)
+                        with open(temp_file_path, 'rb') as f:
+                            doc.document.save(original_filename, File(f), save=True)
+                        os.remove(temp_file_path)
+            return Response({'success': "Файлы успешно загружены к заявке" + application_id}, status = status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": f"Ошибка при удалении: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class DocumentDeleteAPI(APIView):
+    """
+    API для удаления файлов из модели AppDocumentsModel
+    Требует аутентификации и проверки прав доступа
+    """
+    def delete(self, request, document_id):
+        try:
+            # Получаем документ
+            document = AppDocumentsModel.objects.get(id=document_id)
+
+            # Удаляем физический файл
+            file_path = document.document.path
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            # Удаляем запись из БД
+            document.delete()
+
+            return Response({'success': "Файл {document_id}  успешно удален"}, status = status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": f"Ошибка при удалении: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UploadDoc(APIView):
     permission_classes = [IsAuthenticated,]
@@ -962,12 +1019,27 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             status_name = F('status__name'),
             priority_name = F('priority__name'),
             engineer_name = Trim(Case(
+                # Если есть и имя, и фамилия - объединяем их
                 When(
-                    Q(engineer__isnull = False) & Q(engineer__last_name__isnull = False),
-                    then = Concat('engineer__first_name', Value(' '), 'engineer__last_name')
+                    Q(engineer__isnull=False) &
+                    ~Q(engineer__first_name='') &
+                    ~Q(engineer__last_name=''),
+                    then=Concat('engineer__first_name', Value(' '), 'engineer__last_name')
                 ),
-                When(engineer__last_name = '', then = F('engineer__email')),
-                default = Value(''), output_field = CharField()
+                # Если нет имени или фамилии - используем email
+                When(
+                    Q(engineer__isnull=False) &
+                    (
+                        Q(engineer__first_name='') |
+                        Q(engineer__last_name='') |
+                        Q(engineer__first_name__isnull=True) |
+                        Q(engineer__last_name__isnull=True)
+                    ),
+                    then=F('engineer__email')
+                ),
+                # По умолчанию пустая строка
+                default=Value(''),
+                output_field=CharField()
             )),
             contact_name = F('contact__fio'),
             contact_email = F('contact__email'),
@@ -981,15 +1053,20 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
                 default = F('equipment__equipment__brand__name'), output_field = CharField()
             ),
             equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n: '), 'equipment__sn', Value(')')),
+            end_user_organization_id = F('equipment__contract__end_users__organization__id'),
+            end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+            contract_number = Func(F('equipment__contract__number'), Value(''), function = 'IFNULL', output_field = CharField()),
 
         ).filter(id = application_id)[0]
         serializer = ApplicationDetailsSerializer(application)
 
         history = ApplicationHistoryAPIView().get(request = request._request, application_id = application_id).data
-
+        history_sorted = sorted(history, key=lambda x: x['pubdate'])
         spares = SparesListAPIView.as_view()(request._request).data
-
-        return Response({'application': serializer.data, 'history': history, 'spares': spares, 'permissions': permissions}, status = status.HTTP_200_OK)
+        Statuses = AppStatusSerializer(StatusModel.objects.all(), many=True).data
+        Priority = AppPrioritySerializer(AppPriorityModel.objects.all(), many=True).data
+        Engineers = EngineersListAPIView.as_view()(request._request).data
+        return Response({'application': serializer.data, 'history': history_sorted, 'spares': spares, 'permissions': permissions, 'statuses': Statuses, 'priorities': Priority, 'engineers': Engineers }, status = status.HTTP_200_OK)
 
     @extend_schema(
         tags = ['Заявки (Done)'],
@@ -1008,13 +1085,14 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
 
         application = ApplicationModel.objects.get(id = application_id)
         data = request.data.copy()
-
+        #print(f"equipment_str: {data.get('problem')}")
         if data.get('equipment_str'):
             # Разделяем строку и получаем серийный номер
             eq_list = data.get('equipment_str')[0:-1].split(' (S/n: ')
             try:
                 # Пытаемся найти оборудование по серийному номеру
                 data['equipment'] = ContractEquipmentModel.objects.get(sn=eq_list[1]).id
+                print(f"equipment: {data['equipment']}")
             except ContractEquipmentModel.DoesNotExist:
                 return Response({'message': 'Оборудование не найдено по серийному номеру'}, status=status.HTTP_406_NOT_ACCEPTABLE)
 
@@ -1049,7 +1127,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         app_status_name = ''
         if application.status_id != data['status']:
             app_status = StatusModel.objects.get(id = data['status'])
-            app_status_name = app_status.mame
+            app_status_name = app_status.name
             history.append({'type': 1, 'text': 'Статус заявки изменен на "' + app_status_name + '"', 'application': application, 'author': request.user})
 
             AppStatusModel.objects.create(application_id = application_id, status_id = data['status'])

@@ -31,6 +31,17 @@ class ClientApplicationForm(forms.ModelForm):
         model = ApplicationModel
         fields = ['priority', 'problem', 'equipment', 'contact',]
 
+class DocumentForm(forms.ModelForm):
+    class Meta:
+        model = AppDocumentsModel
+        fields = ('name', 'document', 'application')
+
+    @property
+    def filesize(self):
+        if self.instance and self.instance.document:
+            return self.instance.filesize
+        return "0 B"
+
 class ApplicationForm(forms.ModelForm):
     User = get_user_model()
 
@@ -80,6 +91,7 @@ AppDocumentsFormset = inlineformset_factory(
 
 EditAppDocumentsFormset = inlineformset_factory(
     ApplicationModel, AppDocumentsModel,
+    form=DocumentForm,
     fields = ('name', 'document', 'application'),
     extra = 0
 )

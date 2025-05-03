@@ -79,14 +79,17 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
     support_level = serializers.CharField(label = 'Тип поддержки')
     vendor_name = serializers.CharField(label = 'Вендор')
     equipment_name = serializers.CharField(label = 'Оборудование')
+    end_user_organization_id = serializers.IntegerField(label='ID конечного заказчика')
+    end_user_organization_name = serializers.CharField(label='Название конечного заказчика')
+    contract_number = serializers.CharField(label='Номер контракта')
     documents = AppDocumentsSerializer(many = True, read_only = True)
 
     class Meta:
         model = ApplicationModel
         fields = [
             'id', 'formatted_date', 'status_id', 'status_name', 'priority_id', 'priority_name',
-            'engineer_id', 'engineer_name', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
-            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'documents'
+            'engineer_id', 'engineer_name', 'client_id', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
+            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents'
         ]
 
 class AppCommentSerializer(serializers.ModelSerializer):

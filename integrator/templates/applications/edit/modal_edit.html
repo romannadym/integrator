@@ -1,0 +1,177 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalEditTicket" tabindex="-1" aria-labelledby="editOrder" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Редактирование заявки #{{ data.application.id }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                      <div class="col-lg-12">
+                          <h6 class="fw-semibold">Статус заявки:</h6>
+                          <select class="js-example-basic-single" id="t-status">
+                            {% for status in data.statuses %}
+                              <option value="{{ status.id }}" {% if status.id == data.application.status_id %} selected {% endif %}>{{ status.name }}</option>
+
+                              {% endfor %}
+                          </select>
+                      </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Приоритет заявки:</h6>
+                            <select class="js-example-basic-single" id="t-priority">
+                              {% for priority in data.priorities %}
+                                <option value="{{ priority.id }}" {% if priority.id == data.application.priority_id %} selected {% endif %}>{{ priority.name }}</option>
+
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Назначен инженер:</h6>
+                            <select class="js-example-basic-single" id="t-engineer">
+                              <option value="">----</option>
+                            {% for engineer in data.engineers %}
+                              <option value="{{ engineer.id }}" {% if engineer.id == data.application.engineer_id %} selected {% endif %}>{{ engineer.name }}</option>
+
+                              {% endfor %}
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Оборудование:</h6>
+                            <select class="js-example-basic-single" id="t-equipments" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Описание проблемы:</h6>
+                            <textarea class="form-control" name="problem" id="t-problem" rows="12" required>{{ data.application.problem }}</textarea>
+                        </div>
+
+                    </div>
+                    <!--end row-->
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="button" class="btn btn-success" id="updateTicket">Сохранить</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('#t-equipments').select2();
+    $('#t-status').select2();
+    $('#t-priority').select2();
+    $('#t-engineer').select2();
+    $.ajax({
+        url: '/applications/add/',
+        method: 'POST',
+        data: { client: {{ data.application.client_id }}, sn: '' },
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        dataType: 'json',
+        success: function(result) {
+            result.forEach(function (item){
+              let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`
+              let selected = ''
+              if(equipment == "{{ data.application.equipment_name }}"){
+                selected = 'selected'
+              }
+              $('#t-equipments').append(`<option value="${equipment}" ${selected} >${equipment}</option>`)
+            })
+        }
+    });
+
+    $('#updateTicket').on('click', function(){
+      changeTicket();
+    })
+
+
+  })
+  function changeTicket(){
+    let submitButton = $('#updateTicket'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+    submitButton.prop('disabled', true);
+    // Сохраняем текст, если надо восстановить потом
+    let originalText = submitButton.html();
+
+    // Блокируем и добавляем фиксированные размеры
+    let buttonWidth = submitButton.outerWidth();
+    let buttonHeight = submitButton.outerHeight();
+
+    submitButton.prop('disabled', true).css({
+      width: buttonWidth,
+      height: buttonHeight
+    }).html(`
+      <span class="d-flex justify-content-center align-items-center w-100 h-100">
+        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+      </span>
+    `);
+    let ticket_id = $('#ticket_id').val();
+    let data = {
+      priority: $('#t-priority').val(),
+      problem: $('#t-problem').val(),
+      equipment_str: $('#t-equipments').val(),
+      status: Number($('#t-status').val())
+    }
+    if ($('#t-engineer').val()) {
+        data.engineer = $('#t-engineer').val(); // добавляем engineer, если есть значение
+    }
+    console.log(data)
+    if(!data.equipment_str){
+      alertError(`Поле оборудование не мжет быть пустым`)
+      submitButton.prop('disabled', false);
+      submitButton.html(originalText); // Восстанавливаем текст кнопки
+      return
+    }
+    $.ajax({
+        url: '/applications/api/edit/'+ticket_id,
+        method: 'PUT',
+        data: JSON.stringify(data),
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json',
+         },
+         statusCode: {
+               200: function (result) {
+                 $('#showModalEditTicket').modal('hide');
+                 alertSuccess(`Заявка #${ticket_id} от редактирована!`);
+                 $('.edit-ticket-success').on('click', () => location.reload());
+               },
+               403: function(result) {
+                   alertError('Ошибка 403!')
+               },
+               400: function(result) {
+                   alertError('Ошибка 400!')
+               },
+               406: function(result) {
+                   console.log('Ошибка 406!')
+                   alertError('Ошибка 404!<br>'+result.message)
+               }
+
+         },
+        error: function(e) {
+          console.log(e)
+          let status = '';
+          if(e.status){
+            status = 'Статус ошибки - ' + e.status;
+          }
+          let detail = '';
+          if(e.responseJSON)
+          {
+            detail = e.responseJSON.detail;
+          }
+          alertError(`${status}<br>${detail}`)
+        },
+        complete: function() {
+          submitButton.prop('disabled', false);
+          submitButton.html(originalText); // Восстанавливаем текст кнопки
+        }
+    });
+  }
+</script>

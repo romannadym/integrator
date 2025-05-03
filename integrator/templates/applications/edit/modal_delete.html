@@ -1,0 +1,84 @@
+{% load static %}
+<div class="modal fade flip" id="deleteOrder" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body p-5 text-center">
+                <lord-icon src="{% static 'assets/json/gsqxdxog.json' %}" trigger="loop" colors="primary:#405189,secondary:#f06548" style="width:90px;height:90px"></lord-icon>
+                <div class="mt-4 text-center">
+                    <h4 id="delId"></h4>
+                    <p class="text-muted fs-14 mb-4">Удаление вашей задачи приведет к удалению всей вашей информации из нашей базы данных.</p>
+                    <div class="hstack gap-2 justify-content-center remove">
+                        <button class="btn btn-link btn-ghost-success fw-medium text-decoration-none" id="deleteRecord-close" data-bs-dismiss="modal"><i class="ri-close-line me-1 align-middle"></i>Отмена</button>
+                        <button class="btn btn-danger" id="delete-record">Да, Удалить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $('#deleteOrder').on('show.bs.modal', function (event) {
+
+     const modal = $(this);
+    let ticket_id = $('#ticket_id').val();
+        // Если хочешь вставить ID в заголовок или текст:
+        modal.find('h4').text(`Вы собираетесь удалить заявку #${ticket_id}?`);
+
+
+
+        $('#delete-record').off('click').on('click', () => {
+          // Блокируем кнопку отправки
+          let submitButton = $('#delete-record'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+          submitButton.prop('disabled', true);
+          // Сохраняем текст, если надо восстановить потом
+          let originalText = submitButton.html();
+
+          // Блокируем и добавляем фиксированные размеры
+          let buttonWidth = submitButton.outerWidth();
+          let buttonHeight = submitButton.outerHeight();
+
+          submitButton.prop('disabled', true).css({
+            width: buttonWidth,
+            height: buttonHeight
+          }).html(`
+            <span class="d-flex justify-content-center align-items-center w-100 h-100">
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            </span>
+          `);
+          deleteApplication(ticket_id, modal, submitButton, originalText)
+        });
+
+      })
+
+      function deleteApplication(itemId, modal, submitButton, originalText) {
+          $.ajax({
+              url: `/applications/api/edit/${itemId}`,
+              method: 'DELETE',
+              headers: { 'X-CSRFToken': getCookie('csrftoken') },
+              processData: false,
+              contentType: false,
+              dataType: 'json',
+              statusCode: {
+                  200: function(data) {
+                      modal.modal('hide');
+                      alertDeleteSuccess(`Заявка #${itemId} удалена!`);
+                      $('.delete-ticket-success').on('click', () => location.replace('/applications/apps_list/'));
+                  },
+                  404: function() {
+                      alertDeleteError("Заявка не найдена!");
+                  },
+                  403: function(data) {
+                      alertDeleteError(data.message);
+                  },
+                  500: function() {
+                      alertDeleteError("Ошибка сервера 500!");
+                  }
+              },
+              complete: function () {
+                submitButton.prop('disabled', false);
+                submitButton.html(originalText); // Восстанавливаем текст кнопки
+              }
+          });
+      }
+
+</script>

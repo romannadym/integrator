@@ -385,7 +385,7 @@ def EditApplicationView(request, application_id): #Редактирование 
             return redirect('edit-application', application_id = application_id)
 
     context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
-    return render(request, 'applications/edit.html', context)
+    return render(request, 'applications/edit/edit.html', context)
 
 @login_required
 @require_POST

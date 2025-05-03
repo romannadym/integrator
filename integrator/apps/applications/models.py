@@ -11,7 +11,7 @@ from django.core.files import File
 from ckeditor.fields import RichTextField
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-
+from django.utils.functional import cached_property
 from bs4 import BeautifulSoup
 
 import barcode                      # additional imports
@@ -127,6 +127,26 @@ class AppDocumentsModel(models.Model):
         if not self.name:
             self.name = os.path.basename(self.document.name)
         super().save(*args, **kwargs)
+
+    @cached_property
+    def filesize(self):
+        """Возвращает размер файла в удобочитаемом формате"""
+        if self.document:
+            try:
+                size_bytes = self.document.size
+                return self.human_readable_size(size_bytes)
+            except (ValueError, OSError):
+                return "0 B"
+        return "0 B"
+
+    @staticmethod
+    def human_readable_size(size_bytes):
+        """Конвертирует размер в байтах в удобочитаемый формат"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} PB"
 
 class AppStatusModel(models.Model):
     status = models.ForeignKey(StatusModel, verbose_name = 'Статус заявки', on_delete = models.SET_NULL, related_name = "statuses", null = True)

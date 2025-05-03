@@ -173,7 +173,7 @@ $(document).ready(function () {
     }
 
     function updateApplication(itemId, data, modal,submitButton, ticketTable, originalText) {
-
+        console.log(data)
         $.ajax({
             url: `/applications/api/edit/${itemId}`,
             method: 'PUT',

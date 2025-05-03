@@ -1,0 +1,202 @@
+{% load static %}
+<div class="col-xxl-3">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><b>Детали заявки</b> #{{ data.application.id }}</h5>
+        </div>
+        <div class="card-body">
+            <div class=" table-card">
+                <table class="table table-borderless align-middle mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="fw-medium"><b>Дата создания:</b></td>
+                            <td id="t-client">{{ data.application.formatted_date }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Приоритет:</b></td>
+                            <td>
+                              <div class="badge rounded-pill
+                              {% if data.application.priority_id == 1 %}
+                                  bg-danger
+                              {% elif data.application.priority_id == 2 %}
+                                  bg-warning
+                              {% elif data.application.priority_id == 3 %}
+                                  bg-success
+                              {% elif data.application.priority_id == 4 %}
+                                  bg-info
+                              {% endif %}
+                               fs-12" id="ticket-priority">{{ data.application.priority_name }}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Статус:</b></td>
+                            <td>
+                              <div class="badge rounded-pill
+                              {% if data.application.status_id == 1 %}
+                                  bg-info
+                              {% elif data.application.status_id == 2 %}
+                                  bg-warning
+                              {% elif data.application.status_id == 3 %}
+                                  bg-warning
+                              {% elif data.application.status_id == 4 %}
+                                  bg-danger
+                              {% elif data.application.status_id == 6 %}
+                                  bg-success
+                              {% endif %}
+                               fs-12" id="ticket-status">{{ data.application.status_name }}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Назначен инженер:</b></td>
+                            <td>
+                                {{data.application.engineer_name }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Контактные данные по заявке:</b></td>
+                            <td>
+                                {% if data.application.contact_id %}{{ data.application.contact_name }} <a href="mailto:{{ data.application.contact_email }}">{{ data.application.contact_email }}</a> {{ data.application.contact_phone|default_if_none:'' }}{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Уровень поддержки:</b></td>
+                            <td id="c-date">{{ data.application.support_level }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Контракт:</b></td>
+                            <td id="d-date">{{ data.application.contract_number }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium"><b>Оборудование:</b></td>
+                            <td>
+                              {{ data.application.equipment_name }}
+                          </td>
+                        </tr>
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!--end card-body-->
+    </div>
+    <!--end card-->
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between" style="min-height: 45px;">
+            <h6 class="card-title fw-semibold mb-0" >Прикрепленные файлы</h6>
+                <button class="btn btn-primary add-btn" data-bs-toggle="modal" data-bs-target="#showModalUploadFiles">Загрузить файлы</button>
+
+        </div>
+        {% for doc in document %}
+          {% if doc.document.value %}
+          <div class="card-body">
+              <div class="d-flex align-items-center border border-dashed p-2 rounded">
+                  <div class="flex-shrink-0 avatar-sm">
+                      <div class="avatar-title bg-light rounded">
+                          <i class="ri-file-zip-line fs-20 text-primary"></i>
+                      </div>
+                  </div>
+                  <div class="flex-grow-1 ms-3">
+                      <h6 class="mb-1"><a href="javascript:void(0);">{{ doc.name.value }}</a></h6>
+                      <small class="text-muted">{{ doc.filesize }}</small>
+                  </div>
+                  <div class="hstack gap-3 fs-16">
+                      <a href="{% get_media_prefix %}{{ doc.document.value }}" onclick="event.preventDefault(); downloadWithCustomName(this, '{{  doc.name.value }}')" class="text-muted"><i class="ri-download-2-line"></i></a>
+                      <a href="javascript:void(0);" data-doc-name="{{ doc.name.value }}" class="text-muted file-delete"><i class="ri-delete-bin-line"></i></a>
+                      {{ doc.id }}
+                  </div>
+              </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+    </div>
+    <!--end card-->
+</div>
+
+<!--end col-->
+
+<script type="text/javascript">
+    $(document).ready(function () {
+
+      $('.file-delete').on('click', function () {
+        let doument_id = $(this).next().val();
+        let document_name = $(this).data('docName');
+        if(doument_id){
+          alertDeleteDoc(doument_id,document_name)
+
+
+        }
+      })
+
+    })
+  function downloadWithCustomName(element, filename) {
+    fetch(element.href)
+        .then(response => response.blob())
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+}
+
+function deleteDocument(){
+
+}
+function alertDeleteDoc (documentId,text)
+{
+  Swal.fire({
+      html: '<div class="mt-3">' +
+          '<lord-icon src="https://cdn.lordicon.com/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>' +
+          '<div class="mt-4 pt-2 fs-15 mx-5">' +
+          `<p class="text-muted mx-4 mb-0">Вы уверены что хотите удалить файл <br>"<span class="text-success">${text}</span>" ?</p>`+
+          '</div>' +
+          '</div>',
+      showCancelButton: true,
+      showLoaderOnConfirm: true,
+      confirmButtonClass: 'btn btn-primary w-xs me-2 mb-1 delete-doc-aprove',
+      confirmButtonText: 'Да !',
+      cancelButtonClass: 'btn btn-danger w-xs mb-1',
+      cancelButtonText: 'Нет',
+      buttonsStyling: false,
+      showCloseButton: true,
+      allowOutsideClick: false,
+      preConfirm: () => {
+            return fetch(`/applications/api/documents/${documentId}/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(response.statusText);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                Swal.showValidationMessage(
+                    `Ошибка: ${error}`
+                );
+            });
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Файл удален!',
+                confirmButtonClass: 'btn btn-primary w-xs',
+                buttonsStyling: false,
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload(); // Перезагружаем страницу после удаления
+            });
+        }
+    });
+}
+</script>
