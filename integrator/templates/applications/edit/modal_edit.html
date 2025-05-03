@@ -20,7 +20,7 @@
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Приоритет заявки:</h6>
-                            <select class="js-example-basic-single" id="t-priority">
+                            <select class="js-example-basic-single" id="t-priority" {% if data.application.status_id == 4 %} disabled="true" {% endif %}>
                               {% for priority in data.priorities %}
                                 <option value="{{ priority.id }}" {% if priority.id == data.application.priority_id %} selected {% endif %}>{{ priority.name }}</option>
 
@@ -30,7 +30,7 @@
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Назначен инженер:</h6>
-                            <select class="js-example-basic-single" id="t-engineer">
+                            <select class="js-example-basic-single" id="t-engineer" {% if data.application.status_id == 4 %} disabled="true" {% endif %}>
                               <option value="">----</option>
                             {% for engineer in data.engineers %}
                               <option value="{{ engineer.id }}" {% if engineer.id == data.application.engineer_id %} selected {% endif %}>{{ engineer.name }}</option>
@@ -41,14 +41,14 @@
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Оборудование:</h6>
-                            <select class="js-example-basic-single" id="t-equipments" required>
+                            <select class="js-example-basic-single" id="t-equipments" {% if data.application.status_id == 4 %} disabled="true" {% endif %} required>
                                 <option value=""></option>
                             </select>
                         </div>
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Описание проблемы:</h6>
-                            <textarea class="form-control" name="problem" id="t-problem" rows="12" required>{{ data.application.problem }}</textarea>
+                            <textarea class="form-control" name="problem" id="t-problem" rows="12" {% if data.application.status_id == 4 %} disabled="true" {% endif %} required>{{ data.application.problem }}</textarea>
                         </div>
 
                     </div>

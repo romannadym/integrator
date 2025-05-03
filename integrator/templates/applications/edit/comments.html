@@ -40,10 +40,10 @@
                 <div class="row g-3">
                     <div class="col-lg-12">
                         <label for="exampleFormControlTextarea1" class="form-label">Оставте коментарий </label>
-                        <textarea class="form-control bg-light border-light" id="comment" rows="3" placeholder="Напишите коментарий"></textarea>
+                        <textarea class="form-control bg-light border-light" id="comment" rows="3" {% if data.application.status_id == 4 %} disabled="true" {% endif %} placeholder="Напишите коментарий"></textarea>
                     </div>
                     <div class="col-lg-12 text-end">
-                        <a href="javascript:void(0);" class="btn btn-success" id="send-comment">Отправить</a>
+                        <a href="javascript:void(0);" class="btn btn-success {% if data.application.status_id == 4 %} disabled {% endif %}" id="send-comment" >Отправить</a>
                     </div>
                 </div>
             </form>

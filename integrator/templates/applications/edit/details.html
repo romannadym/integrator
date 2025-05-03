@@ -83,7 +83,7 @@
     <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between" style="min-height: 45px;">
             <h6 class="card-title fw-semibold mb-0" >Прикрепленные файлы</h6>
-                <button class="btn btn-primary add-btn" data-bs-toggle="modal" data-bs-target="#showModalUploadFiles">Загрузить файлы</button>
+                <button class="btn btn-primary add-btn {% if data.application.status_id == 4 %} disabled {% endif %}" data-bs-toggle="modal" data-bs-target="#showModalUploadFiles">Загрузить файлы</button>
 
         </div>
         {% for doc in document %}
@@ -101,7 +101,7 @@
                   </div>
                   <div class="hstack gap-3 fs-16">
                       <a href="{% get_media_prefix %}{{ doc.document.value }}" onclick="event.preventDefault(); downloadWithCustomName(this, '{{  doc.name.value }}')" class="text-muted"><i class="ri-download-2-line"></i></a>
-                      <a href="javascript:void(0);" data-doc-name="{{ doc.name.value }}" class="text-muted file-delete"><i class="ri-delete-bin-line"></i></a>
+                      <a href="javascript:void(0);" data-doc-name="{{ doc.name.value }}" class="text-muted file-delete" ><i class="ri-delete-bin-line"></i></a>
                       {{ doc.id }}
                   </div>
               </div>
@@ -118,6 +118,7 @@
     $(document).ready(function () {
 
       $('.file-delete').on('click', function () {
+        {% if data.application.status_id == 4 %} return {% endif %}
         let doument_id = $(this).next().val();
         let document_name = $(this).data('docName');
         if(doument_id){
