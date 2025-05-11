@@ -96,7 +96,12 @@ class ApplicationModel(models.Model):
     problem = models.TextField('Описание проблемы')
     contact = models.ForeignKey(OrganizationContactModel, verbose_name = 'Контактное лицо', on_delete = models.SET_NULL, related_name = "appcontact", null = True)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Заказчик', on_delete = models.PROTECT, related_name = "appclients", null = True)
-    engineer = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Инженер', on_delete = models.PROTECT, related_name = "engineers", null = True, blank = True)
+    engineers = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        verbose_name='Инженеры',
+        related_name='assigned_applications',
+        blank=True
+    )
     pubdate = models.DateTimeField('Дата создания', auto_now_add = True)
     status = models.ForeignKey(StatusModel, verbose_name = 'Статус заявки', on_delete = models.PROTECT, null = True)
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Создано', on_delete = models.PROTECT, related_name = "creators", null = True)
@@ -186,9 +191,14 @@ class AppCommentModel(models.Model):
         ordering = ['-pubdate']
 
 def comments_send_messages(comment, method_type):
+    # Аннотируем заявку инженерами
     application = ApplicationModel.objects.annotate(
-        email = OrganizationContactModel.objects.filter(id = OuterRef('contact_id'))[:1].values('email'),
-        engineer_email = F('engineer__email')).get(id = comment.application_id)
+        email=Subquery(OrganizationContactModel.objects.filter(id=OuterRef('contact_id')).values('email')[:1]),
+        engineer_emails=Coalesce(Subquery(EngineerModel.objects.filter(user_id=OuterRef('engineers')).values_list('email', flat=True)), Value([]))
+    ).get(id=comment.application_id)
+
+    # Преобразуем emails инженеров в список
+    engineer_emails = list(application.engineer_emails)
 
     to_emails = []
     history = []
@@ -203,8 +213,8 @@ def comments_send_messages(comment, method_type):
 
     if not comment.email_date:
         to_emails.append(application.email)
-    if application.engineer:
-        to_emails.append(application.engineer_email)
+    if engineer_emails:
+        to_emails.extend(engineer_emails)
 
     title = ' комментарий к заявке № ' + str(application.id)
 
@@ -281,7 +291,10 @@ class AppSpareModel(models.Model):
         ordering = ['-pubdate']
 
 def spares_send_messages(spare, method_type):
-    application = ApplicationModel.objects.annotate(engineer_email = F('engineer__email')).get(id = spare.application_id)
+    application = ApplicationModel.objects.prefetch_related('engineers').get(id=spare.application_id)
+
+    # Получаем email всех инженеров
+    engineer_emails = application.engineers.all().values_list('email', flat=True)
 
     spare_label = spare.spare.name + ' (S/n: ' + spare.spare.sn + ')'
     to_emails = []
@@ -307,11 +320,12 @@ def spares_send_messages(spare, method_type):
         text_part = 'возврате'
         history.append({'type': 6, 'text': text, 'application': application, 'author': spare.author})
 
-    if application.engineer_email:
-        if send_email(params = params, title = title, send_to = [application.engineer_email]):
-            text = 'Отправлено сообщение о ' + text_part + ' запчасти "' + spare_label + '" на адрес электронной почты' + application.engineer_email
+     # Отправка всем инженерам
+    if engineer_emails:
+        if send_email(params=params, title=title, send_to=list(engineer_emails)):
+            text = f'Отправлено сообщение о {text_part} запчасти "{spare_label}" на адреса электронной почты: {", ".join(engineer_emails)}'
         else:
-            text = 'Не удалось отправить сообщение о ' + text_part + ' запчасти "' + spare_label + '" на адрес электронной почты' + application.engineer_email
+            text = f'Не удалось отправить сообщение о {text_part} запчасти "{spare_label}" на адреса электронной почты: {", ".join(engineer_emails)}'
         history.append({'type': 4, 'text': text, 'application': application, 'author': spare.author})
 
     if send_telegram(params = params):

@@ -72,7 +72,8 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
     formatted_date = serializers.CharField(label = 'Дата создания')
     status_name = serializers.CharField(label = 'Статус заявки')
     priority_name = serializers.CharField(label = 'Приоритет заявки')
-    engineer_name = serializers.CharField(label = 'Инженер')
+    engineers = serializers.SerializerMethodField()
+    engineer_names = serializers.SerializerMethodField()
     contact_name = serializers.CharField(label = 'Контактное лицо')
     contact_email = serializers.CharField(label = 'Почта контактного лица')
     contact_phone = serializers.CharField(label = 'Телефон контактного лица')
@@ -88,8 +89,16 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
         model = ApplicationModel
         fields = [
             'id', 'formatted_date', 'status_id', 'status_name', 'priority_id', 'priority_name',
-            'engineer_id', 'engineer_name', 'client_id', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
+            'engineers', 'engineer_names', 'client_id', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
             'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents'
+        ]
+    def get_engineers(self, obj):
+        return list(obj.engineers.values_list('id', flat=True))
+
+    def get_engineer_names(self, obj):
+        return [
+            f"{e.first_name} {e.last_name}" if e.first_name and e.last_name else e.email
+            for e in obj.engineers.all()
         ]
 
 class AppCommentSerializer(serializers.ModelSerializer):
@@ -116,9 +125,15 @@ class EditAppSpareSerializer(serializers.ModelSerializer):
         fields = ['appeqspare',]
 
 class EditApplicationSerializer(serializers.ModelSerializer):
+    User = get_user_model()
+    engineers = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.filter(groups__name='Инженер'),
+        required=False
+    )
     class Meta:
         model = ApplicationModel
-        fields = ['engineer', 'priority', 'status', 'equipment', 'problem']
+        fields = ['engineers', 'priority', 'status', 'equipment', 'problem']
 
 class AddAppDocumentsSerializer(serializers.ModelSerializer):
     documents = AppDocumentsSerializer(many = True, required = False)

@@ -306,7 +306,8 @@ class ApplicationsListAPIView(APIView):
         if permissions['is_staff']:
             fields.extend([
                 'priority_id', 'priority_name', 'organization_id', 'organization_name',
-                'end_user_organization_id', 'end_user_organization_name'
+                'end_user_organization_id', 'end_user_organization_name', 'engineer_id', 'engineer_name',
+                'engineer_last_name'
             ])
 
         applications = ApplicationModel.objects.filter(**prms)\
@@ -319,6 +320,14 @@ class ApplicationsListAPIView(APIView):
                 organization_name = F('equipment__contract__client__organization__name'),
                 end_user_organization_id = F('equipment__contract__end_users__organization__id'),
                 end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                engineer_last_name = Trim('engineer__last_name'),
+                engineer_name = Case(
+                    When(
+                        Q(engineer__isnull = False) & Q(engineer__last_name__isnull = False) & ~Q(engineer_last_name = ''),
+                        then = Concat('engineer__first_name', Value(' '), 'engineer__last_name')
+                    ),
+                    When(engineer_last_name = '', then = F('engineer__email')),
+                    default = Value(''), output_field = CharField()),
                 formatted_date = Func(
                     Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                     Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
@@ -376,17 +385,14 @@ class ApplicationsListAPIViewNew(APIView):
                 organization_name = F('equipment__contract__client__organization__name'),
                 end_user_organization_id = F('equipment__contract__end_users__organization__id'),
                 end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
-                engineers_list=Subquery(
-                    ApplicationModel.objects
-                    .filter(pk=OuterRef('pk'))
-                    .annotate(engineer_names=Func(
-                        F('engineers__first_name'),
-                        Value(' '),
-                        F('engineers__last_name'),
-                        function='CONCAT'
-                    ))
-                    .values('engineer_names')[:1]
-                ),
+                engineer_last_name = Trim('engineer__last_name'),
+                engineer_name = Case(
+                    When(
+                        Q(engineer__isnull = False) & Q(engineer__last_name__isnull = False) & ~Q(engineer_last_name = ''),
+                        then = Concat('engineer__first_name', Value(' '), 'engineer__last_name')
+                    ),
+                    When(engineer_last_name = '', then = F('engineer__email')),
+                    default = Value(''), output_field = CharField()),
                 formatted_date = Func(
                     Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                     Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
@@ -425,7 +431,7 @@ class ApplicationsListAPIViewNew(APIView):
 
         # Фильтрация по "только мои"
         if request.GET.get('mine') == '1':
-            tickets = tickets.filter(engineers=user)
+            tickets = tickets.filter(engineer=user)
 
         # Получаем статистику по статусам ДО применения поиска
         status_stats = (
@@ -450,7 +456,7 @@ class ApplicationsListAPIViewNew(APIView):
             tickets = tickets.filter(status_id__in=status_ids)
         engineer_id = request.GET.get('engineer')
         if engineer_id:
-            tickets = tickets.filter(engineers__id=engineer_id)
+            tickets = tickets.filter(engineer_id=engineer_id)
 
         ru_months = {
             'Янв': 'Jan', 'Фев': 'Feb', 'Мар': 'Mar', 'Апр': 'Apr',
@@ -525,28 +531,11 @@ class ApplicationsListAPIViewNew(APIView):
         if is_staff:
             fields.extend([
                 'priority_id', 'priority_name', 'organization_id', 'organization_name',
-                'end_user_organization_id', 'end_user_organization_name', 'engineers_list'
+                'end_user_organization_id', 'end_user_organization_name', 'engineer_id', 'engineer_name',
+                'engineer_last_name'
             ])
-        raw_data = list(page_obj.object_list.values(*fields))
-        engineers_map = {}
-
-        # Получаем инженеров для всех заявок одной выборкой (оптимизация)
-        app_ids = [item['id'] for item in raw_data]
-        engineers_qs = ApplicationModel.objects.filter(id__in=app_ids).prefetch_related('engineers')
-        for app in engineers_qs:
-            engineers_map[app.id] = [
-                {
-                    'id': eng.id,
-                    'name': f"{eng.first_name} {eng.last_name}" if eng.first_name and eng.last_name else eng.email
-                }
-                for eng in app.engineers.all()
-            ]
-
-        # Добавим к каждой заявке список инженеров
-        for item in raw_data:
-            item['engineers_list'] = engineers_map.get(item['id'], [])
-
-        data = raw_data
+        # Сериализация
+        data = list(page_obj.object_list.values(*fields))
 
         return Response({
             'draw': int(request.GET.get('draw', 1)),
@@ -997,7 +986,8 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         description = '<p>"application" - Данные заявки, где</p><ol><li>"id" - Идентификатор / номер заявки</li><li>"formatted_date" - Дата создания</li>\
         <li>"status_id" - Идентификатор статуса заявки</li><li>"status_name" - Наименование статуса заявки</li>\
         <li>"priority_id" - Идентификатор приоритета заявки</li><li>"priority_name" - Наименование приоритета заявки</li>\
-        <li>"engineer_id" - Идентификатор инженера</li><li>"engineer_name" - ФИО инженера, если указано, иначе e-mail</li>\
+        <li>"engineers" - Список ID назначенных инженеров</li>\
+        <li>"engineer_names" - Список ФИО инженеров</li>\
         <li>"contact_id" - Идентификатор контактного лица</li><li>"contact_name" - ФИО контактного лица</li><li>"contact_email" - e-mail контактного лица</li>\
         <li>"contact_phone" - Телефон контактного лица</li><li>"support_level" - Наименование уровня поддержки</li>\
         <li>"vendor_name" - Наименование вендора</li><li>"equipment_id" - Идентификатор оборудования</li><li>"equipment_name" - Наименование оборудования</li>\
@@ -1017,111 +1007,86 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
     )
     def get(self, request, application_id, *args, **kwargs):
         permissions = {
-            'is_admin': request.user.groups.filter(name='Администратор').exists(),
-            'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+            'is_admin': request.user.groups.filter(name = 'Администратор').exists(),
+            'is_engineer': request.user.groups.filter(name = 'Инженер').exists(),
             'is_staff': is_admin_or_engineer(request.user)
         }
 
-
         application = ApplicationModel.objects.annotate(
-            formatted_date=Func(
-                Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function='CONVERT_TZ', output_field=CharField()),
-                Value('%d.%m.%Y %H:%i'), function='DATE_FORMAT', output_field=CharField()
+            formatted_date = Func(
+                Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
+                Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
             ),
-            status_name=F('status__name'),
-            priority_name=F('priority__name'),
-            contact_name=F('contact__fio'),
-            contact_email=F('contact__email'),
-            contact_phone=F('contact__phone'),
-            support_level=F('equipment__support__name'),
-            vendor_name=Case(
+            status_name = F('status__name'),
+            priority_name = F('priority__name'),
+            contact_name = F('contact__fio'),
+            contact_email = F('contact__email'),
+            contact_phone = F('contact__phone'),
+            support_level = F('equipment__support__name'),
+            vendor_name = Case(
                 When(
-                    Q(equipment__equipment__vendor__isnull=False) & ~Q(equipment__equipment__vendor__name=''),
-                    then=F('equipment__equipment__vendor__name')
+                    Q(equipment__equipment__vendor__isnull = False) & ~Q(equipment__equipment__vendor__name = ''),
+                    then = F('equipment__equipment__vendor__name')
                 ),
-                default=F('equipment__equipment__brand__name'),
-                output_field=CharField()
+                default = F('equipment__equipment__brand__name'), output_field = CharField()
             ),
-            equipment_name=Concat(
-                'equipment__equipment__brand__name',
-                Value(' '),
-                'equipment__equipment__model__name',
-                Value(' (S/n: '),
-                'equipment__sn',
-                Value(')')
-            ),
-            end_user_organization_id=F('equipment__contract__end_users__organization__id'),
-            end_user_organization_name=Func(
-                F('equipment__contract__end_users__organization__name'),
-                Value(''),
-                function='IFNULL',
-                output_field=CharField()
-            ),
-            contract_number=Func(
-                F('equipment__contract__number'),
-                Value(''),
-                function='IFNULL',
-                output_field=CharField()
-            ),
-        ).get(id=application_id)
+            equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n: '), 'equipment__sn', Value(')')),
+            end_user_organization_id = F('equipment__contract__end_users__organization__id'),
+            end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+            contract_number = Func(F('equipment__contract__number'), Value(''), function = 'IFNULL', output_field = CharField()),
 
+        ).filter(id = application_id)[0]
         serializer = ApplicationDetailsSerializer(application)
-        history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
+
+        history = ApplicationHistoryAPIView().get(request = request._request, application_id = application_id).data
         history_sorted = sorted(history, key=lambda x: x['pubdate'])
         spares = SparesListAPIView.as_view()(request._request).data
         Statuses = AppStatusSerializer(StatusModel.objects.all(), many=True).data
         Priority = AppPrioritySerializer(AppPriorityModel.objects.all(), many=True).data
         Engineers = EngineersListAPIView.as_view()(request._request).data
-
-        return Response({
-            'application': serializer.data,
-            'history': history_sorted,
-            'spares': spares,
-            'permissions': permissions,
-            'statuses': Statuses,
-            'priorities': Priority,
-            'engineers': Engineers
-        }, status=status.HTTP_200_OK)
+        return Response({'application': serializer.data, 'history': history_sorted, 'spares': spares, 'permissions': permissions, 'statuses': Statuses, 'priorities': Priority, 'engineers': Engineers }, status = status.HTTP_200_OK)
 
     @extend_schema(
-        tags=['Заявки (Done)'],
-        summary='Редактирование заявки',
-        description='<ol><li>"engineers" - Список ID инженеров</li><li>"priority" - Идентификатор приоритета заявки</li>'
-                    '<li>"status" - Идентификатор статуса заявки</li><li>"equipment" - Идентификатор оборудования</li></ol>',
-        parameters=[
-            OpenApiParameter(name='application_id', description='Идентификатор заявки', type=int, required=True,
-                             location=OpenApiParameter.PATH),
+        tags = ['Заявки (Done)'],
+        summary = 'Редактирование заявки',
+        description = '<ol><li>"engineer" - Идентификатор инженера</li><li>"priority" - Идентификатор приоритета заявки</li>\
+        <li>"status" - Идентификатор статуса заявки</li><li>"equipment" - Идентификатор оборудования</li></ol>',
+        parameters = [
+            OpenApiParameter(name = 'application_id', description = 'Идентификатор заявки', type = int, required = True, location = OpenApiParameter.PATH),
         ],
-        request=EditApplicationSerializer(),
-        responses={(200, 'application/json'): OpenApiResponse(response=EditApplicationSerializer())}
+        request = EditApplicationSerializer(),
+        responses = {(200, 'application/json'): OpenApiResponse(response = EditApplicationSerializer())}
     )
     def put(self, request, application_id, *args, **kwargs):
         if not is_admin_or_engineer(request.user):
-            return Response({'message': 'Недостаточно прав'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
 
-        application = ApplicationModel.objects.get(id=application_id)
+        application = ApplicationModel.objects.get(id = application_id)
         data = request.data.copy()
-        User = get_user_model()
-
-        # Обработка оборудования
+        #print(f"equipment_str: {data.get('problem')}")
         if data.get('equipment_str'):
+            # Разделяем строку и получаем серийный номер
             eq_list = data.get('equipment_str')[0:-1].split(' (S/n: ')
             try:
+                # Пытаемся найти оборудование по серийному номеру
                 data['equipment'] = ContractEquipmentModel.objects.get(sn=eq_list[1]).id
+                print(f"equipment: {data['equipment']}")
             except ContractEquipmentModel.DoesNotExist:
-                return Response({'message': 'Оборудование не найдено по серийному номеру'},
-                                status=status.HTTP_406_NOT_ACCEPTABLE)
+                return Response({'message': 'Оборудование не найдено по серийному номеру'}, status=status.HTTP_406_NOT_ACCEPTABLE)
 
-        if int(data.get('equipment', 0)) != application.equipment_id and application.changed:
-            data['equipment'] = application.equipment_id
+        if int(data['equipment']) != application.equipment_id:
 
-        # Получаем текущих и новых инженеров
-        current_engineers = set(application.engineers.values_list('id', flat=True))
-        new_engineers = set(map(int, data.get('engineers', [])))
-        engineers_changed = current_engineers != new_engineers
+            if application.changed:
+                data['equipment'] = application.equipment_id
 
-        # Обновление статуса при первом назначении инженеров
-        if application.status_id == 1 and engineers_changed and new_engineers:
+            #else:
+            #    equipments = GetClientsEquipmentsAPIView().get(request, client_id = application.client_id).data
+            #    equipment = next((equip for equip in equipments['equipments'] if equip['id'] == int(data['equipment'])), None)
+            #    return Response({'message': 'Оборудование указано некорректно1' + equipment }, status = status.HTTP_406_NOT_ACCEPTABLE)
+            #    if not equipment:
+            #        return Response({'message': 'Оборудование указано некорректно' + equipments['equipments'] }, status = status.HTTP_406_NOT_ACCEPTABLE)
+
+        if application.status_id == 1 and 'engineer' in data and data['engineer']:
             data['status'] = 6
 
         history = []
@@ -1131,176 +1096,97 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'status': '',
             'type': 'edit'
         }
+        if application.engineer or data.get('engineer'):
+            engineer_id = application.engineer_id if application.engineer_id else data.get('engineer')
 
-        # Обработка изменений статуса
-        if application.status_id != data.get('status'):
-            app_status = StatusModel.objects.get(id=data['status'])
+            User = get_user_model()
+            engineer = User.objects.get(id = engineer_id)
+            engineer_email = engineer.email
+        app_status_name = ''
+        if application.status_id != data['status']:
+            app_status = StatusModel.objects.get(id = data['status'])
             app_status_name = app_status.name
-            history.append({
-                'type': 1,
-                'text': f'Статус заявки изменен на "{app_status_name}"',
-                'application': application,
-                'author': request.user
-            })
-            AppStatusModel.objects.create(application_id=application_id, status_id=data['status'])
+            history.append({'type': 1, 'text': 'Статус заявки изменен на "' + app_status_name + '"', 'application': application, 'author': request.user})
 
-            # Отправка уведомлений
-            self._send_status_notifications(app_status, application, request, history)
+            AppStatusModel.objects.create(application_id = application_id, status_id = data['status'])
 
-        # Обработка изменений приоритета
-        if application.priority_id != int(data.get('priority', 0)):
-            app_priority = AppPriorityModel.objects.get(id=int(data['priority']))
-            history.append({
-                'type': 2,
-                'text': f'Изменен приоритет заявки на "{app_priority.name}"',
-                'application': application,
-                'author': request.user
-            })
-            self._send_priority_notifications(app_priority, application, request, history)
+            contact_email = application.contact.email
+            params['status'] = app_status
+            if send_email(params = params, title = 'Изменение статуса заявки', send_to = [contact_email]):
+                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status_name + '" на адрес электронной почты ' + contact_email
+            else:
+                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status_name + '" на адрес электронной почты ' + contact_email
+            history.append({'type': 3, 'text': text, 'application': application, 'author': request.user})
 
-        # Обработка изменений инженеров
-        if engineers_changed:
-            added_engineers = new_engineers - current_engineers
-            removed_engineers = current_engineers - new_engineers
+            if send_telegram(params = params):
+                text = 'Отправлено сообщение об изменении статуса заявки на "' + app_status_name + '" в телеграм-канал'
+            else:
+                text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + app_status_name + '" в телеграм-канал'
+            history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
-            if added_engineers:
-                engineers = User.objects.filter(id__in=added_engineers)
-                engineers_list = ", ".join([str(e) for e in engineers])
-                history.append({
-                    'type': 2,
-                    'text': f'Добавлены инженеры: {engineers_list}',
-                    'application': application,
-                    'author': request.user
-                })
-                self._send_engineer_notifications(engineers, application, request, history, 'добавление')
+            if application.engineer or data['engineer']:
+                params['type'] = 'status'
 
-            if removed_engineers:
-                engineers = User.objects.filter(id__in=removed_engineers)
-                engineers_list = ", ".join([str(e) for e in engineers])
-                history.append({
-                    'type': 2,
-                    'text': f'Удалены инженеры: {engineers_list}',
-                    'application': application,
-                    'author': request.user
-                })
+                if send_email(params = params, title = 'Изменение статуса заявки', send_to = [engineer_email]):
+                    text = 'Отправлено сообщение об изменении статуса заявки "' + app_status_name + '" на адрес электронной почты ' + engineer_email
+                else:
+                    text = 'Не удалось отправить сообщение об изменении статуса заявки "' + app_status_name + '" на адрес электронной почты ' + engineer_email
 
-        # Сохранение изменений
-        serializer = EditApplicationSerializer(application, data=data)
-        if serializer.is_valid():
-            application = serializer.save()
+                history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
-            # Обновление списка инженеров после сохранения
-            if engineers_changed:
-                application.engineers.set(new_engineers)
+        if application.priority_id != int(data['priority']):
+            app_priority = AppPriorityModel.objects.get(id = int(data['priority']))
+            history.append({'type': 2, 'text': 'Изменен приоритет заявки на "' + app_priority.name + '"', 'application': application, 'author': request.user})
 
-            if history:
-                AppHistoryModel.objects.bulk_create(
-                    [AppHistoryModel(**item) for item in history]
-                )
+            if application.engineer or data.get('engineer'):
+                params['type'] = 'priority'
+                params['status'] = app_priority
+                if send_email(params = params, title = 'Изменение приоритета заявки', send_to = [engineer_email]):
+                    text = 'Отправлено сообщение об изменении приоритета заявки "' + app_priority.name + '" на адрес электронной почты ' + engineer_email
+                else:
+                    text = 'Не удалось отправить сообщение об изменении приоритета заявки "' + app_priority.name + '" на адрес электронной почты ' + engineer_email
+                history.append({'type': 3, 'text': text, 'application': application, 'author': request.user})
 
-            return Response(serializer.data, status=status.HTTP_200_OK)
+                if send_telegram(params = params):
+                    text = 'Отправлено сообщение об изменении приоритета заявки на "' + app_status_name + '" в телеграм-канал'
+                else:
+                    text = 'Не удалось отправить сообщение об изменении приоритета заявки на "' + app_status_name + '" в телеграм-канал'
+                history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if 'engineer' in data and not application.engineer:
+            history.append({'type': 2, 'text': 'Назначен инженер "' + str(engineer) + '"', 'application': application, 'author': request.user})
 
-    def _send_status_notifications(self, status, application, request, history):
-        """Отправка уведомлений об изменении статуса"""
-        params = {
-            'id': application.id,
-            'url': request.build_absolute_uri(application.get_absolute_url()),
-            'status': status.name,
-            'type': 'status'
-        }
-
-        # Отправка контактному лицу
-        if send_email(params, 'Изменение статуса заявки', [application.contact.email]):
-            history.append({
-                'type': 3,
-                'text': f'Уведомление об изменении статуса заявки на "{status.name}" отправлено контактному лицу',
-                'application': application,
-                'author': request.user
-            })
-
-        # Отправка инженерам
-        for engineer in application.engineers.all():
-            if send_email(params, 'Изменение статуса заявки', [engineer.email]):
-                history.append({
-                    'type': 4,
-                    'text': f'Уведомление об изменении статуса заявки на "{status.name}" отправлено инженеру {engineer.email}',
-                    'application': application,
-                    'author': request.user
-                })
-
-        # Отправка в Telegram
-        if send_telegram(params):
-            history.append({
-                'type': 4,
-                'text': 'Уведомление об изменении статуса заявки в Telegram',
-                'application': application,
-                'author': request.user
-            })
-
-    def _send_priority_notifications(self, priority, application, request, history):
-        """Отправка уведомлений об изменении статуса"""
-        params = {
-            'id': application.id,
-            'url': request.build_absolute_uri(application.get_absolute_url()),
-            'status': priority.name,
-            'type': 'priority'
-        }
-
-        # Отправка контактному лицу
-        if send_email(params, 'Изменение приоритета заявки', [application.contact.email]):
-            history.append({
-                'type': 3,
-                'text': f'Уведомление об изменении приоритета заявки "{priority.name}" отправлено контактному лицу',
-                'application': application,
-                'author': request.user
-            })
-
-        # Отправка инженерам
-        for engineer in application.engineers.all():
-            if send_email(params, 'Изменение приоритета заявки', [engineer.email]):
-                history.append({
-                    'type': 4,
-                    'text': f'Уведомление об изменении приоритета заявки "{priority.name}" отправлено инженеру {engineer.email}',
-                    'application': application,
-                    'author': request.user
-                })
-
-        # Отправка в Telegram
-        if send_telegram(params):
-            history.append({
-                'type': 4,
-                'text': 'Уведомление об изменении приоритета заявки в Telegram',
-                'application': application,
-                'author': request.user
-            })
-
-    def _send_engineer_notifications(self, engineers, application, request, history, action_type):
-        """Отправка уведомлений о изменении состава инженеров"""
-        params = {
-            'id': application.id,
-            'url': request.build_absolute_uri(application.get_absolute_url()),
-            'type': 'engineer'
-        }
-
-        for engineer in engineers:
+            params['type'] = 'engineer'
             params['status'] = engineer
-            if send_email(params, f'Вы были {action_type} к заявке', [engineer.email]):
-                history.append({
-                    'type': 4,
-                    'text': f'Уведомление о {action_type} отправлено инженеру {engineer.email}',
-                    'application': application,
-                    'author': request.user
-                })
+            if send_email(params = params, title = 'Назначен инженер', send_to = [engineer_email]):
+                text = 'Отправлено сообщение о назначении инженера "' + str(engineer) + '" на адрес электронной почты ' + engineer_email
+            else:
+                text = 'Не удалось отправить сообщение о назначении инженера "' + str(engineer) + '" на адрес электронной почты ' + engineer_email
+            history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
 
-        if send_telegram(params):
-            history.append({
-                'type': 4,
-                'text': f'Уведомление о {action_type} инженеров отправлено в Telegram',
-                'application': application,
-                'author': request.user
-            })
+            if send_telegram(params = params):
+                text = 'Отправлено сообщение о назначении инженера "' + str(engineer) + '" в телеграм-канал'
+            else:
+                text = 'Не удалось отправить сообщение о назначении инженера "' + str(engineer) + '" в телеграм-канал'
+            history.append({'type': 4, 'text': text, 'application': application, 'author': request.user})
+
+        history_instance = [AppHistoryModel(**row) for row in history]
+        AppHistoryModel.objects.bulk_create(history_instance)
+
+        serializer = EditApplicationSerializer(application, data = data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status = status.HTTP_200_OK)
+        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        tags = ['Заявки (Done)'],
+        summary = 'Удаление заявки',
+        parameters = [
+            OpenApiParameter(name = 'application_id', description = 'Идентификатор заявки', type = int, required = True, location = OpenApiParameter.PATH),
+        ],
+        responses = {(200, 'application/json'): OpenApiResponse(response = {'message': 'Объект удален'}, examples = [OpenApiExample('Пример', value = {'message': 'Объект удален'})])}
+    )
     def delete(self, request, application_id, *args, **kwargs):
         if not request.user.groups.filter(name = 'Администратор').exists():
             return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)

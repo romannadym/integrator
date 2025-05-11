@@ -173,18 +173,27 @@ AppApproveFormset = inlineformset_factory(
 )
 
 class EditApplicationForm(forms.ModelForm):
+    engineers = forms.ModelMultipleChoiceField(
+        queryset=get_user_model().objects.none(),  # Пустой queryset, будет переопределен в __init__
+        widget=forms.SelectMultiple(attrs={'class': 'form-control'}),
+        required=False,
+        label='Инженеры'
+    )
+
     class Meta:
         model = ApplicationModel
-        fields = ('priority', 'engineer',)
+        fields = ('priority', 'engineers',)  # Заменили engineer на engineers
 
     def __init__(self, *args, **kwargs):
         super(EditApplicationForm, self).__init__(*args, **kwargs)
 
         User = get_user_model()
-        self.fields['engineer'].queryset = User.objects.filter(groups__name = 'Инженер')
-        # for s in self.status:
-        #     s.status.queryset = StatusModel.objects.filter(id=1)
-        #     # self.status.forms['status'] = AppStatusFormset(queryset = StatusModel.objects.filter(id=1))
+        # Устанавливаем queryset для engineers
+        self.fields['engineers'].queryset = User.objects.filter(groups__name='Инженер')
+
+        # Если редактируем существующую заявку, устанавливаем начальные значения
+        if self.instance.pk:
+            self.fields['engineers'].initial = self.instance.engineers.all()
 
 class EquipmentForm(forms.ModelForm):
 
