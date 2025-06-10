@@ -1,7 +1,15 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Редактирование заявки{% endblock title %}
+{% block pagecss %}
+    <!--datatable css-->
+    <link rel="stylesheet" href="/static/assets/css/dataTables.bootstrap5.min.css" />
+    <!--datatable responsive css-->
+    <link rel="stylesheet" href="/static/assets/css/responsive.bootstrap.min.css" />
 
+    <link rel="stylesheet" href="/static/assets/css/buttons.dataTables.min.css">
+
+{% endblock %}
 {% block content %}
 <div class="row">
     <div class="col-lg-12">
@@ -63,7 +71,7 @@
                         <div class="col-md-auto mt-md-0 mt-4">
                             <div class="hstack gap-1 flex-wrap">
                                 <button type="button" class="btn py-0 fs-16 text-body" id="settingDropdown" data-bs-toggle="dropdown">
-                                    <i class="ri-share-line"></i>
+                                  <i class="ri-more-fill align-middle"></i>
                                 </button>
                                 <ul class="dropdown-menu" aria-labelledby="settingDropdown">
                                     <li><a class="dropdown-item" href="#showModalEditTicket" data-bs-toggle="modal"><i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать</a></li>
@@ -81,9 +89,43 @@
 </div><!-- end row -->
 
 <div class="row">
-  {% include "applications/edit/comments.html" %}
-  {% include "applications/edit/details.html" %}
+  <div class="col-xxl-12">
+    <div class="card">
+        <div class="card-body pb-0">
+            <ul class="nav nav-pills nav-customs nav-danger" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#border-navs-application" role="tab">Заявка</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#border-navs-zip" role="tab">ЗИП</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#border-navs-log" role="tab">Лог</a>
+                </li>
+            </ul><!-- Tab panes -->
+          </div>
+          <div class="card-body bg-light">
+            <div class="row">
+              <div class="col-xxl-9">
+                <div class="tab-content text-muted">
 
+                    <div class="tab-pane active" id="border-navs-application" role="tabpanel">
+                      {% include "applications/edit/comments.html" %}
+                    </div>
+                    <div class="tab-pane" id="border-navs-zip" role="tabpanel">
+                      {% include "applications/edit/ticketszip.html" %}
+                    </div>
+                    <div class="tab-pane" id="border-navs-log" role="tabpanel">
+                      {% include "applications/edit/logs.html" %}
+                    </div>
+
+              </div>
+            </div>
+            {% include "applications/edit/details.html" %}
+          </div>
+        </div>
+      </div>
+    </div>
 </div><!-- end row -->
 {% include "applications/edit/modal_edit.html" %}
 {% include "applications/edit/modal_delete.html" %}
@@ -91,6 +133,12 @@
 {% endblock content %}
 
 {% block pagescripts %}
+<script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}"  crossorigin="anonymous"></script>
+    <!--datatable js-->
+    <script src="/static/assets/js/pages/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.responsive.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.buttons.min.js"></script>
 <script src="/static/assets/libs/dropzone/dropzone-min.js"></script>
 <!-- filepond js -->
 <script src="/static/assets/libs/filepond/filepond.min.js"></script>
@@ -99,7 +147,57 @@
 <script src="/static/assets/libs/filepond-plugin-image-exif-orientation/filepond-plugin-image-exif-orientation.min.js"></script>
 <script src="/static/assets/libs/filepond-plugin-file-encode/filepond-plugin-file-encode.min.js"></script>
 <script src="/static/assets/js/pages/plugins/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/i18n/ru.min.js"></script>
+  <script src="/static/assets/libs/prismjs/prism.js"></script>
 <script type="text/javascript">
+  document.addEventListener('DOMContentLoaded', function() {
+      // Соответствие между хэшами URL и ID табов
+      const hashToTabMap = {
+        '#ticketszip': 'border-navs-zip',
+        '#log': 'border-navs-log',
+        '#application': 'border-navs-application'
+      };
+
+      // Обратное соответствие для обновления URL при клике
+      const tabToHashMap = {
+        'border-navs-application': '#application',
+        'border-navs-zip': '#ticketszip',
+        'border-navs-log': '#log'
+      };
+
+      // Функция активации таба по хэшу
+      function activateTabByHash(hash) {
+        if (hashToTabMap[hash]) {
+          const targetTabId = hashToTabMap[hash];
+          const tabLink = document.querySelector(`a[href="#${targetTabId}"]`);
+
+          if (tabLink) {
+            // Активируем через Bootstrap API
+            const tab = new bootstrap.Tab(tabLink);
+            tab.show();
+          }
+        }
+      }
+
+      // 1. Активируем нужный таб при загрузке страницы
+      activateTabByHash(window.location.hash);
+
+      // 2. Обновляем URL при переключении вкладок
+      document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('click', function() {
+          const tabId = this.getAttribute('href').substring(1); // Убираем #
+          if (tabToHashMap[tabId]) {
+            // Обновляем URL без перезагрузки страницы
+            history.pushState(null, null, tabToHashMap[tabId]);
+          }
+        });
+      });
+
+      // 3. Обрабатываем изменения хэша через кнопки браузера
+      window.addEventListener('hashchange', function() {
+        activateTabByHash(window.location.hash);
+      });
+  });
   function getCookie(name) {
       let cookieValue = null;
       if (document.cookie && document.cookie !== '') {

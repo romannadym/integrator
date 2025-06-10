@@ -78,17 +78,17 @@
                 statusCode: {
                     200: function(data) {
                         modal.modal('hide');
-                        alertSuccess(`Заявка #${itemId} удалена!`);
+                        alertDeleteSuccess(`Заявка #${itemId} удалена!`);
                         $('.delete-ticket-success').on('click', () => ticketTable.ajax.reload(null, false));
                     },
                     404: function() {
-                        alertError("Заявка не найдена!");
+                        alertDeleteError("Заявка не найдена!");
                     },
                     403: function(data) {
-                        alertError(data.message);
+                        alertDeleteError(data.message);
                     },
                     500: function() {
-                        alertError("Ошибка сервера 500!");
+                        alertDeleteError("Ошибка сервера 500!");
                     }
                 },
                 complete: function () {

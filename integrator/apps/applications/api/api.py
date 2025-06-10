@@ -46,6 +46,147 @@ from applications.api.serializers import *
 from integrator.apps.functions import is_admin_or_engineer, get_prms_from_ids, send_email, send_telegram
 from django.core.files.storage import default_storage
 import uuid, json, os
+import requests
+
+class SkladTicketsZipAPI(APIView):
+    permission_classes = [IsAuthenticated,]
+    def get(self, request):
+        sd_ticket_id = request.GET.get('sd_ticket_id')
+
+        params = {}
+        if sd_ticket_id:
+            params['sd_ticket_id'] = sd_ticket_id
+        session = requests.Session()
+        session.max_redirects = 10  # Лимит редиректов
+        session.headers.update(settings.WAREHOUSE_HEADERS)
+        try:
+            response = session.get(
+                settings.WAREHOUSE_URL + 'tickets',
+                params=params,
+                allow_redirects=True  # Включаем редиректы с сохранением заголовков
+            )
+            response.raise_for_status()
+            data = response.json()
+            return Response({
+                "draw": int(request.GET.get('draw', 1)),
+                "recordsTotal": data.get('total', 0),
+                "recordsFiltered": data.get('total', 0),
+                "data": data.get('rows', [])
+            }, status=status.HTTP_200_OK)
+        except requests.exceptions.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+    def put(self, request, ticketszip_id, *args, **kwargs):
+        data = request.data.copy()
+        status_id =  data.get('status_id')
+        payload = {
+        "status_id": status_id,
+        }
+        try:
+        # 3. Отправляем POST-запрос на внешний сервис
+            response = requests.put(
+                settings.WAREHOUSE_URL + 'tickets/'+ str(ticketszip_id),  # Замените на ваш URL
+                json=payload,
+                headers=settings.WAREHOUSE_HEADERS  # Замените на ваши заголовки, например токен
+            )
+
+            # 4. Обрабатываем ответ
+            if response.status_code in [200, 201]:
+                return Response(response.json(), status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"error": "Ошибка при отправке", "details": response.text},
+                    status=response.status_code
+                )
+
+        except Exception as e:
+            return Response({"error": "Ошибка сервера", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class SkladZipAPI(APIView):
+    permission_classes = [IsAuthenticated,]
+    def get(self, request):
+        session = requests.Session()
+        session.max_redirects = 10  # Лимит редиректов
+        session.headers.update(settings.WAREHOUSE_HEADERS)
+        try:
+            search_query = request.GET.get('q', '').lower()
+            response = session.get(
+                settings.WAREHOUSE_URL + 'components',
+                allow_redirects=True  # Включаем редиректы с сохранением заголовков
+            )
+            response.raise_for_status()
+            warehouse_data = response.json()
+            filtered_rows = warehouse_data['rows']
+            if search_query:
+                filtered_rows = [
+                    item for item in warehouse_data['rows']
+                    if (search_query in item['name'].lower() or
+                    (item.get('partnum') and search_query in item['partnum'].lower()))
+                ]
+
+            # Преобразование в формат Select2
+            items = [
+                {
+                    "id": item["id"],
+                    "text": f"{item['name']} ({item.get('partnum', '')})"  # Можно добавить доп. информацию
+                }
+                for item in filtered_rows
+            ]
+
+            return Response({
+                "items": items,
+                "total_count": len(items) if search_query else warehouse_data['total']
+            }, status=status.HTTP_200_OK)
+        except requests.exceptions.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    def post(self, request):
+        try:
+            # 1. Получаем данные из POST-запроса (из формы)
+            component_id = request.data.get('component_id')
+            asset_model = request.data.get('asset_model')
+            asset_brand = request.data.get('asset_brand')
+            asset_type = request.data.get('asset_type')
+            asset_serial = request.data.get('asset_serial')
+            asset_name = request.data.get('asset_name')
+            engineer_name = request.data.get('engineer_name')
+            engineer_email = request.data.get('engineer_email')
+            asset_contract = request.data.get('asset_contract')
+            sd_ticket_id = request.data.get('sd_ticket_id')
+            company_name = request.data.get('company_name')
+
+            # 2. Формируем данные для отправки на внешний API
+            payload = {
+                "component_id": component_id,
+                "asset_model": asset_model,
+                "asset_brand": asset_brand,
+                "asset_type": asset_type,
+                "asset_serial": asset_serial,
+                "asset_name": asset_name,
+                "engineer_name": engineer_name,
+                "engineer_email": engineer_email,
+                "asset_contract": asset_contract,
+                "sd_ticket_id": sd_ticket_id,
+                "company_name": company_name,
+            }
+
+            # 3. Отправляем POST-запрос на внешний сервис
+            response = requests.post(
+                settings.WAREHOUSE_URL + 'tickets',  # Замените на ваш URL
+                json=payload,
+                headers=settings.WAREHOUSE_HEADERS  # Замените на ваши заголовки, например токен
+            )
+
+            # 4. Обрабатываем ответ
+            if response.status_code in [200, 201]:
+                return Response(response.json(), status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"error": "Ошибка при отправке", "details": response.text},
+                    status=response.status_code
+                )
+
+        except Exception as e:
+            return Response({"error": "Ошибка сервера", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class DocumentUploadAPI(APIView):
     def post(self, request):
@@ -1050,6 +1191,10 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
                 'equipment__sn',
                 Value(')')
             ),
+            asset_brand_name = F('equipment__equipment__brand__name'),
+            asset_model_name = F('equipment__equipment__model__name'),
+            asset_type_name = F('equipment__equipment__type__name'),
+            asset_serial_name = F('equipment__sn'),
             end_user_organization_id=F('equipment__contract__end_users__organization__id'),
             end_user_organization_name=Func(
                 F('equipment__contract__end_users__organization__name'),

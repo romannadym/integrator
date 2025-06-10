@@ -56,7 +56,7 @@ class AddApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ApplicationModel
-        fields = ['priority', 'problem', 'contact', 'client', 'equipment', 'engineer', 'status', 'creator', 'documents']#
+        fields = ['priority', 'problem', 'contact', 'client', 'equipment', 'engineers', 'status', 'creator', 'documents']#
 
     def create(self, validated_data):
         documents = self.context['request'].data.getlist('documents')
@@ -80,6 +80,10 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
     support_level = serializers.CharField(label = 'Тип поддержки')
     vendor_name = serializers.CharField(label = 'Вендор')
     equipment_name = serializers.CharField(label = 'Оборудование')
+    asset_brand_name = serializers.CharField(label = 'Брэнд')
+    asset_model_name = serializers.CharField(label = 'Модель')
+    asset_type_name = serializers.CharField(label = 'Тип')
+    asset_serial_name = serializers.CharField(label = 'Серийный номер')
     end_user_organization_id = serializers.IntegerField(label='ID конечного заказчика')
     end_user_organization_name = serializers.CharField(label='Название конечного заказчика')
     contract_number = serializers.CharField(label='Номер контракта')
@@ -90,7 +94,8 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'formatted_date', 'status_id', 'status_name', 'priority_id', 'priority_name',
             'engineers', 'engineer_names', 'client_id', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
-            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents'
+            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents',
+            'asset_brand_name', 'asset_model_name', 'asset_type_name', 'asset_serial_name'
         ]
     def get_engineers(self, obj):
         return list(obj.engineers.values_list('id', flat=True))
@@ -155,7 +160,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     formatted_date = serializers.CharField(label = 'Дата создания')
     status_name = serializers.CharField(label = 'Статус заявки')
     priority_name = serializers.CharField(label = 'Приоритет заявки')
-    engineer_name = serializers.CharField(label = 'Инженер')
+    engineers = serializers.SerializerMethodField()
+    engineer_names = serializers.CharField(label = 'Инженер')
     contact_name = serializers.CharField(label = 'Контактное лицо')
     contact_email = serializers.CharField(label = 'Контактные данные (e-mail)')
     contact_phone = serializers.CharField(label = 'Контактные данные (телефон)')
@@ -169,13 +175,14 @@ class ApplicationSerializer(serializers.ModelSerializer):
         model = ApplicationModel
         fields = [
             'id', 'formatted_date', 'organization_id', 'status_id', 'status_name', 'priority_id', 'priority_name',
-            'engineer_id', 'engineer_name', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
+            'engineers', 'engineer_names', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
             'equipment_id', 'equipment_name', 'support_id', 'support_name', 'vendor_name', 'problem', 'documents',
         ]
 
 #Для документации
 class AppListSerializer(serializers.ModelSerializer):
     equipment_name = serializers.CharField(label = 'Наименование оборудования')
+    engineers = serializers.SerializerMethodField()
     status_name = serializers.CharField(label = 'Наименование статуса заявки')
     priority_name = serializers.CharField(label = 'Наименование приоритета заявки')
     organization_id = serializers.IntegerField(label = 'Идентификатор организации')
@@ -190,7 +197,7 @@ class AppListSerializer(serializers.ModelSerializer):
         model = ApplicationModel
         fields = [
             'id', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'problem', 'priority_id', 'priority_name',
-            'organization_id', 'organization_name', 'end_user_organization_id', 'end_user_organization_name', 'engineer_id',
+            'organization_id', 'organization_name', 'end_user_organization_id', 'end_user_organization_name', 'engineers',
             'engineer_last_name', 'engineer_name', 'formatted_date'
         ]
 

@@ -2,7 +2,9 @@ import os
 from datetime import datetime
 
 from django.db import models
-from django.db.models import OuterRef, F
+from django.db.models import OuterRef, F, Subquery
+from django.contrib.auth import get_user_model
+from django.db.models.functions import Coalesce
 from django.conf import settings
 from django.urls import reverse
 
@@ -192,13 +194,17 @@ class AppCommentModel(models.Model):
 
 def comments_send_messages(comment, method_type):
     # Аннотируем заявку инженерами
+    User = get_user_model()
     application = ApplicationModel.objects.annotate(
-        email=Subquery(OrganizationContactModel.objects.filter(id=OuterRef('contact_id')).values('email')[:1]),
-        engineer_emails=Coalesce(Subquery(EngineerModel.objects.filter(user_id=OuterRef('engineers')).values_list('email', flat=True)), Value([]))
+        email=Subquery(OrganizationContactModel.objects.filter(id=OuterRef('contact_id')).values('email')[:1])
     ).get(id=comment.application_id)
 
     # Преобразуем emails инженеров в список
-    engineer_emails = list(application.engineer_emails)
+    engineer_emails = list(
+        User.objects.filter(
+            id__in=application.engineers.all().values_list('id', flat=True)
+        ).values_list('email', flat=True)
+    )
 
     to_emails = []
     history = []

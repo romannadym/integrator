@@ -1,0 +1,353 @@
+{% load static %}
+<div class="card">
+    <div class="card-header border-0">
+        <div class="d-flex align-items-center">
+            <h5 class="card-title mb-0 flex-grow-1">Заявки на запчасти</h5>
+            <div class="flex-shrink-0">
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-danger add-btn" data-bs-toggle="modal" data-bs-target="#showModalCreateTicketZips"><i class="ri-add-line align-bottom" ></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-4" style="height: 700px;">
+      <table class="table table-bordered dz-responsive table-striped align-middle dataTable no-footer dtr-inline" style="width: 100%;" id="ticketsZipTable">
+          <thead>
+              <tr>
+                  <th>Номер заявки</th>
+                  <th>Компонент</th>
+                  <th>Инженер</th>
+                  <th>Статус</th>
+                  <th>Создано</th>
+                  <th>Обновлено</th>
+                  <th>Действия</th>
+
+              </tr>
+          </thead>
+          <tbody class="list form-check-all" id="zips-lisz-data">
+
+          </tbody>
+      </table>
+    </div>
+</div>
+<div class="modal fade zoomIn" id="showModalCreateTicketZips" tabindex="-1" aria-labelledby="editOrder" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Создание запроса на компонент</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form id="createZipForm" method="POST">
+                <div class="modal-body">
+                    <div class="row g-3">
+
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Компонеты:</h6>
+                            <select class="js-example-basic-single" name="component_id" id="z-component" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <input type="hidden" name="asset_model" value="{{ data.application.asset_model_name }}">
+                        <input type="hidden" name="asset_brand" value="{{ data.application.asset_brand_name }}">
+                        <input type="hidden" name="asset_type" value="{{ data.application.asset_type_name }}">
+                        <input type="hidden" name="asset_serial" value="{{ data.application.asset_serial_name }}">
+                        <input type="hidden" name="asset_name" value="{{ data.application.equipment_name }}">
+                        <input type="hidden" name="engineer_name" value="{{ user.first_name }} {{ user.last_name }}">
+                        <input type="hidden" name="engineer_email" value="{{ user.email }}">
+                        <input type="hidden" name="asset_contract" value="{{ data.application.contract_number }}">
+                        <input type="hidden" name="sd_ticket_id" value="{{ data.application.id }}">
+                        <input type="hidden" name="company_name" value="{{ data.application.end_user_organization_name }}">
+                    </div>
+                    <!--end row-->
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-contenz-end">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="button" class="btn btn-success" id="createZip">Сохранить</button>
+                        <!-- <button type="button" class="btn btn-success" id="ediz-btn">Update Task</button> -->
+                    </div>
+                </div>
+                </form>
+        </div>
+
+    </div>
+</div>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+
+    $('#createZip').on('click', function (e) {
+      e.preventDefault();
+
+      let submitButton = $('#createZip'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+      submitButton.prop('disabled', true);
+      // Сохраняем текст, если надо восстановить потом
+      let originalText = submitButton.html();
+
+      // Блокируем и добавляем фиксированные размеры
+      let buttonWidth = submitButton.outerWidth();
+      let buttonHeight = submitButton.outerHeight();
+
+      submitButton.prop('disabled', true).css({
+        width: buttonWidth,
+        height: buttonHeight
+      }).html(`
+        <span class="d-flex justify-content-center align-items-center w-100 h-100">
+          <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        </span>
+      `);
+      const formData = $('#createZipForm').serialize(); // Сериализуем данные формы
+      $.ajax({
+        url: '/applications/api/zips/',  // Замените на ваш реальный URL
+        type: 'POST',
+        data: formData,
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        statusCode: {
+          200: function (result) {
+            console.log(result);
+            //$('#showModalCreateTicketZips').modal('hide');
+            alertSuccess(`Заявка #${result.data.id} успешно создана!`);
+            $('.edit-ticket-success').on('click', () => location.reload());
+          },
+          403: function(result) {
+              alertError('Ошибка 403!')
+          },
+          400: function(result) {
+              alertError('Ошибка 400!')
+          },
+          406: function(result) {
+              console.log('Ошибка 406!')
+              alertError('Ошибка 404!<br>'+result.message)
+          },
+          422: function(result) {
+              console.log('Ошибка 422!')
+              alertError('Ошибка 422!<br>'+result.message)
+          }
+        //  $('#showModalCreateTicketZips').modal('hide');
+        },
+        error: function (e) {
+          console.log(e)
+          let status = '';
+          if(e.status){
+            status = 'Статус ошибки - ' + e.status;
+          }
+          let detail = '';
+          if(e.responseJSON)
+          {
+            detail = e.responseJSON.detail;
+          }
+          alertError(`${status}<br>${detail}`)
+        },
+        complete: function() {
+          submitButton.prop('disabled', false);
+          submitButton.html(originalText); // Восстанавливаем текст кнопки
+        }
+      });
+    });
+
+    $('#showModalCreateTicketZips').on('shown.bs.modal', function() {
+        // 1. Уничтожаем предыдущий экземпляр
+        if ($('#z-component').hasClass('select2-hidden-accessible')) {
+            $('#z-component').select2('destroy');
+        }
+
+        // 2. Инициализация с правильными параметрами
+        $('#z-component').select2({
+            dropdownParent: $('#showModalCreateTicketZips'),
+            language: 'ru', // Активируем русский язык
+            ajax: {
+                url: '/applications/api/zips/',
+                dataType: 'json',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                delay: 300,
+                data: function(params) {
+                    return {
+                        q: params.term,
+                        page: params.page || 1
+                    };
+                },
+                processResults: function(data) {
+                    // Преобразуем данные, если нужно
+                    const items = data.items.map(item => {
+                        return {
+                            id: item.id,
+                            text: item.text || item.name // Используем text, если нет - name
+                        };
+                    });
+
+                    return {
+                        results: items,
+                        pagination: {
+                            more: (data.total_count >= 10) // Адаптируем под вашу пагинацию
+                        }
+                    };
+                }
+            },
+            minimumInputLength: 1,
+            placeholder: 'Введите название...',
+            templateResult: function(item) { // Кастомизация отображения
+                if (!item.id) return item.text;
+                return $('<span>').text(item.text).addClass('select2-item');
+            },
+            width: '100%'
+        });
+
+        // 3. Принудительное обновление стилей
+        setTimeout(function() {
+            $('.select2-container').css('z-index', '999999');
+        }, 100);
+    });
+
+    $('#showModalCreateTicketZips').on('hidden.bs.modal', function() {
+        $('#z-component').val(null).trigger('change');
+    });
+    ticketsZipTable = $('#ticketsZipTable').DataTable({
+       processing: true,
+       serverSide: true,
+       searching: false,
+       ajax: {
+           url: '/applications/api/ticketszip/',  // Путь к вашему API
+           type: 'GET',
+           data: function(d) {
+             d.sd_ticket_id = {{ data.application.id }};
+           },
+       },
+
+       columns: [
+           {
+             data: 'id'
+           },
+           {
+             data: 'component.name'
+           },
+           { data: 'requester_name',
+            render: function(data, type, row){
+              return row.requester_name.name
+            }
+           , orderable: false },
+           { data: 'statuslabels.name', orderable: false,
+             render: function(data, type, row) {
+              return `<span class=\"badge  texz-white texz-uppercase\" style="background:${row.statuslabels.color}; color:white" >${row.statuslabels.name}</span><br>`;
+           }},
+            { data: 'created_at.formatted', orderable: false },
+            { data: 'updated_at.formatted', orderable: false },
+            {
+              data: 'id',
+              render: function(data, type, row) {
+                  // Создание ссылки на страницу деталей заявки с использованием id
+                  let installBtn = ``;
+                  let returnBtn = ``;
+                  let disabled = ``;
+                  if (row.statuslabels.id != 11)
+                  {
+                    installBtn = `<li><button class="dropdown-item install" data-id="${row.id}"><i class="ri-eye-fill align-bottom me-2 texz-muted"></i>Установлено</button></li>`;
+                  }
+                  if(row.statuslabels.id != 13)
+                  {
+                    returnBtn = `<li><button class="dropdown-item return" data-id="${row.id}"><i class="ri-delete-bin-fill align-bottom me-2 texz-muted"></i>Возврат</button></li>`;
+                  }
+                  if(row.statuslabels.id == 9)
+                  {
+                    disabled = 'disabled';
+                  }
+                  return `<div class="dropdown">
+                              <button class="btn btn-sofz-secondary btn-sm dropdown" ${disabled} type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                  <i class="ri-more-fill align-middle"></i>
+                              </button>
+                              <ul class="dropdown-menu dropdown-menu-end" style="">
+                                      ${installBtn}
+                                      ${returnBtn}
+                                  </li>
+                              </ul>
+                          </div>`;
+              },
+              orderable: false
+            },
+
+       ],
+       lengthMenu: [[10, 15, 20, 25, 50], [10, 15, 20, 25, 50]],
+       order: [[0, 'default']],
+       language: {
+           url: '/static/assets/js/table-ru.json'
+       },
+       stateSave: true, // Сохранение состояния таблицы
+       // Убедитесь, что данные возвращаются в правильном формате
+       deferRender: true, // Ускоряет при большом количестве данных
+       drawCallback: function(settings) {
+         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+         tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+             new bootstrap.Tooltip(tooltipTriggerEl);
+         });
+       }
+   });
+   ticketsZipTable.on('click', '.install', function () {
+     let ticketZipId = $(this).data('id');
+
+    sendUpdateZip(11, ticketZipId)
+
+    });
+    ticketsZipTable.on('click', '.return', function () {
+      let ticketZipId = $(this).data('id');
+
+     sendUpdateZip(12, ticketZipId)
+
+     });
+    function sendUpdateZip(status, ticketZipId)
+    {
+      $.ajax({
+          url: `/applications/api/ticketszip/${ticketZipId}`,
+          method: 'PUT',
+          data: JSON.stringify({status_id: status}),
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken') ,
+            'Content-Type': 'application/json',
+          },
+          statusCode: {
+                200: function (result) {
+                  console.log(result)
+                  if(result.ticket.status_id == 11)
+                  {
+                    alertSuccess(`Компонент успешно установлен!`);
+                  }
+                  if(result.ticket.status_id == 12)
+                  {
+                    alertSuccess(`Компонент помечен на возврат!`);
+                  }
+                  $('.edit-ticket-success').on('click', () => ticketsZipTable.ajax.reload(null, false));
+                },
+                403: function(result) {
+                    alertError('Ошибка 403!')
+                },
+                400: function(result) {
+                    alertError('Ошибка 400!')
+                },
+                406: function(result) {
+                    console.log('Ошибка 406!')
+                },
+                404: function(result) {
+                    console.log('Ошибка 404!')
+                }
+
+          },
+          error: function(e) {
+            console.log(e)
+            let status = '';
+            if(e.status){
+              status = 'Статус ошибки - ' + e.status;
+            }
+            let detail = '';
+            if(e.responseJSON)
+            {
+              detail = e.responseJSON.detail;
+            }
+            alertError(`${status}<br>${detail}`)
+          },
+          complete: function () {
+          }
+      });
+    }
+  })
+
+</script>

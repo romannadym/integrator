@@ -64,5 +64,9 @@ urlpatterns = [
     path('api/revert/', RevertDoc.as_view(), name = 'revert-doc'),
     path('api/clear-temp/', ClearTemp.as_view(), name = 'clear-temp'),
     path('api/documents/<int:document_id>/', DocumentDeleteAPI.as_view(), name='document-delete-api'),
-     path('api/documents/upload/', DocumentUploadAPI.as_view(), name='document-upload-api'),
+    path('api/documents/upload/', DocumentUploadAPI.as_view(), name='document-upload-api'),
+    path('api/ticketszip/<int:ticketszip_id>', SkladTicketsZipAPI.as_view(), name = 'applications-ticketszip'),
+    path('api/ticketszip/', SkladTicketsZipAPI.as_view(), name = 'applications-ticketszip'),
+    path('api/zips/', SkladZipAPI.as_view(), name = 'applications-zips'),
+
 ]

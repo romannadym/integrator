@@ -4,7 +4,7 @@
     opacity:0
   }
 </style>
-<div class="col-xxl-9">
+
     <div class="card">
         <div class="card-body p-4">
             <h6 class="fw-semibold text-uppercase mb-3">Описание заявки</h6>
@@ -14,7 +14,7 @@
         <div class="card-body p-4">
             <h5 class="card-title mb-4">Коментарии</h5>
 
-            <div data-simplebar style="height: 400px;" class="px-3 mx-n3 messages">
+            <div data-simplebar style="height: 400px;" class="px-3 mx-n3 messages" data-simplebar-auto-hide="false" data-simplebar-track="secondary">
               <div class="comment-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
                 <div class="spinner-border text-light" role="status">
                     <span class="sr-only">Loading...</span>
@@ -43,6 +43,14 @@
                         <textarea class="form-control bg-light border-light" id="comment" rows="3" {% if data.application.status_id == 4 %} disabled="true" {% endif %} placeholder="Напишите коментарий"></textarea>
                     </div>
                     <div class="col-lg-12 text-end">
+                      <!-- Indeterminate -->
+                        <div class="form-check">
+                          <label class="form-check-label" for="hideComment">
+                            Скрыть комментарий от клиента
+                          </label>
+                            <input class="form-check-input" type="checkbox" value="" id="hideComment">
+
+                        </div>
                         <a href="javascript:void(0);" class="btn btn-success {% if data.application.status_id == 4 %} disabled {% endif %}" id="send-comment" >Отправить</a>
                     </div>
                 </div>
@@ -51,10 +59,10 @@
         <!-- end card body -->
     </div>
     <!--end card-->
-</div>
-<!--end col-->
+
 <script>
   $(document).ready(function() {
+        $('div[data-simplebar=init]').attr('data-simplebar-auto-hide', false);
        function scrollToBottom(rm) {
            var simpleBarInstance = $('.messages')[0].simpleBar;
            if (simpleBarInstance) {
@@ -96,16 +104,18 @@
          let comment = $('#comment').val();
          let ticket_id = $('#ticket_id').val();
          let author_name = "{{ user.last_name }} {{ user.first_name }}";
+         let hide = $('#hideComment').is(':checked');
          $.ajax({
              url: '/applications/api/edit/comments/'+ticket_id,
              method: 'POST',
-             data: { text: comment, hide: false },
+             data: { text: comment, hide: hide },
              headers: { 'X-CSRFToken': getCookie('csrftoken') },
              dataType: 'json',
              success: function(result) {
                if(result.text) {
+                 location.reload()
                    // Форматируем текущую дату
-                   let currentDate = new Date();
+                  /* let currentDate = new Date();
                    let formattedDate = currentDate.toLocaleString('ru-RU', {
                        day: '2-digit',
                        month: '2-digit',
@@ -153,7 +163,7 @@
                   // Запускаем моргание
                   blinkElement(newComment, 2, 1000);// Показываем комментарий\
                    // Очищаем поле ввода
-                   $('#comment').val('');
+                   $('#comment').val(''); */
                }
 
              },

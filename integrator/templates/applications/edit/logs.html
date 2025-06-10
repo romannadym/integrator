@@ -1,0 +1,59 @@
+{% load static %}
+<div class="card">
+    <div class="card-body p-4">
+        <h6 class="fw-semibold text-uppercase mb-3">История заявки</h6>
+    </div>
+    <!--end card-body-->
+    <div class="card-body p-4">
+      <div data-simplebar id="init2" data-simplebar-auto-hide="false" data-simplebar-track="secondary" style="max-height: 700px;">
+        <div class="history-loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+          <div class="spinner-border text-primary" role="status">
+              <span class="sr-only">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function() {
+    const simpleBar = new SimpleBar(document.getElementById('init2'));
+    $.ajax({
+        url: '/applications/api/logs/'+$('#ticket_id').val(),
+        method: 'get',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        dataType: 'json',
+        success: function(result, status, xhr) {
+          if (xhr.status === 200) {
+            console.log(result)
+            let html = '';
+            result.forEach(log => {
+             html +=  `<li class="list-group-item py-3">
+                 <div class="d-flex align-items-center">
+                     <div class="flex-shrink-0">
+                         <div>${log.formatted_date}</div>
+                     </div>
+                     <div class="flex-shrink-0 mx-3">
+                         <i class="ri-arrow-right-fill text-muted"></i>
+                     </div>
+                     <div class="flex-grow-1 text-muted overflow-hidden">
+                         <h5 class="text-truncate fs-14 mb-1">${log.text}</h5>
+                         <div class="text-truncate">${log.author_name}</div>
+                     </div>
+                 </div>
+             </li>`;
+
+            });
+            $('#init2').find('.simplebar-content').html('<ul class="list-group list-group-flush history">' + html + '</ul>');
+            simpleBar.recalculate();
+          }
+
+        },
+        error: function(e) {
+          console.log(e)
+        },
+        complete: function(){
+          $('.history-loader').hide()
+        }
+    });
+  })
+</script>
