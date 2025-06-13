@@ -65,7 +65,7 @@ def ContractsListView(request):
 
     context = {'items': items, 'cols': cols, 'label': 'Контракты', 'links': links}
 
-    return render(request, 'admin/list.html', context)
+    return render(request, 'contracts/index.html', context)
 
 @login_required
 def AddContractView(request):
@@ -111,6 +111,7 @@ def EditContractView(request, contract_id):
                 contract.save()
                 form.save_m2m()
                 formset.save()
+            contract.save()
             return redirect('list-contracts')
         else:
             print(form.errors)
@@ -120,7 +121,7 @@ def EditContractView(request, contract_id):
     ]
 
     context = {'form': form, 'formsets': formsets, 'search': True, 'dates': True, 'link': 'list-contracts', 'delete_link': 'delete-contract'}
-    return render(request, 'admin/edit_formset.html', context)
+    return render(request, 'contracts/edit/edit.html', context)
 
 @login_required
 def DeleteContractView(request, contract_id):

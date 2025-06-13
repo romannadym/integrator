@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Редактирование контракта{% endblock title %}
+{% block page-title %}Контракт{% endblock page-title %}
+{% block pagecss %}
+    <!--datatable css-->
+    <link rel="stylesheet" href="/static/assets/css/dataTables.bootstrap5.min.css" />
+    <!--datatable responsive css-->
+    <link rel="stylesheet" href="/static/assets/css/responsive.bootstrap.min.css" />
+
+    <link rel="stylesheet" href="/static/assets/css/buttons.dataTables.min.css">
+
+{% endblock %}
+{% block page-subtitle %}Детали{% endblock page-subtitle %}
+{% block menu-title %}Контракт{% endblock menu-title %}
+{% block content %}
+<div class="row">
+  <div class="col-lg-5">
+    <div class="card">
+      <form method="POST" {% if files %}enctype="multipart/form-data"{% endif %}>
+        <div class="card-body">
+            {% csrf_token %}
+            <div class="row-g-3">
+              {% for field in form %}
+                <div class="col-lg-12 mt-3">
+                  <h6 for="{{ field.id_for_label }}" class="fw-semibold">
+                      {{ field.label }}
+                  </h6>
+                  {{ field.errors }}
+                  {% if field.name == 'signed' or field.name == 'enddate' %}
+                      <!-- Поля даты -->
+                      <input
+                          type="text"
+                          data-provider="flatpickr" data-date-format="d.m.Y" data-locale="ru"
+                          class="form-control"
+                          id="{{ field.name }}"
+                          name="{{ field.name }}"
+                          value="{{ field.value|date:'d.m.Y'|default_if_none:'' }}"
+                      >
+                  {% elif field.name != 'client' and field.name != 'end_users' %}
+                      <input
+                          type="text"
+                          class="form-control"
+                          id="{{ field.name }}"
+                          name="{{ field.name }}"
+                          value="{{ field.value|default_if_none:'' }}"
+                      >
+                  {% else %}
+                      {{ field }}
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+        </div>
+        <div class="card-footer">
+          <div class="hstack gap-2 justify-content-end">
+            <button type="submit" class="btn btn-secondary waves-effect waves-light">Отправить</button>
+            <a href="{% url link %}" class="btn btn-danger waves-effect waves-light">Отмена</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header border-0">
+          <div class="d-flex align-items-center">
+              <h5 class="card-title mb-0 flex-grow-1">Оборудование</h5>
+              <div class="flex-shrink-0">
+                  <div class="d-flex flex-wrap gap-2">
+                      <button class="btn btn-danger add-btn" data-bs-toggle="modal" disabled data-bs-target="#showModalAddEquipment"><i class="ri-add-line align-bottom me-1" ></i> Добавить</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <div class="card-body">
+        {% include "contracts/edit/equipments.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+{% include "contracts/edit/modal_create_eq.html" %}
+{% endblock content %}
+
+{% block pagescripts %}
+<script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}"  crossorigin="anonymous"></script>
+    <!--datatable js-->
+    <script src="/static/assets/js/pages/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.responsive.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.buttons.min.js"></script>
+<script src="/static/assets/libs/dropzone/dropzone-min.js"></script>
+<!-- filepond js -->
+<script src="/static/assets/libs/filepond/filepond.min.js"></script>
+<script src="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.js"></script>
+<script src="/static/assets/libs/filepond-plugin-file-validate-size/filepond-plugin-file-validate-size.min.js"></script>
+<script src="/static/assets/libs/filepond-plugin-image-exif-orientation/filepond-plugin-image-exif-orientation.min.js"></script>
+<script src="/static/assets/libs/filepond-plugin-file-encode/filepond-plugin-file-encode.min.js"></script>
+<script src="/static/assets/js/pages/plugins/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/i18n/ru.min.js"></script>
+<script src="/static/assets/libs/prismjs/prism.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
+  <script type="text/javascript">
+      $(document).ready(function () {
+        $('#id_client').select2({
+            ajax: {
+                // Правильное чтение data-ajax--url
+                url: $('#id_client').attr('data-ajax--url'),
+
+                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+                data: function(params) {
+                    return {
+                        term: params.term,
+                        _type: 'query',
+                        field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                    };
+                },
+
+                // Дополнительные параметры из data-атрибутов
+                cache: $('#id_client').attr('data-ajax--cache') === 'true',
+                dataType: 'json',
+                delay: 250,
+                processResults: function(data) {
+                  console.log(data)
+                    return { results: data.results };
+                }
+            },
+
+            // Другие настройки из data-атрибутов
+            minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
+            theme: $('#id_client').attr('data-theme'),
+            allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+            language: {
+                 noResults: function() {
+                return `<button  type="button"
+                class="btn btn-primary"
+                onClick='task()'>+ Добавить</button>
+                </li>`;
+                }
+             },
+
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+      });
+      $('#id_end_users').select2({
+          ajax: {
+              // Правильное чтение data-ajax--url
+              url: $('#id_end_users').attr('data-ajax--url'),
+
+              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+              data: function(params) {
+                  return {
+                      term: params.term,
+                      _type: 'query',
+                      field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                  };
+              },
+
+              // Дополнительные параметры из data-атрибутов
+              cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+              dataType: 'json',
+              delay: 250,
+              processResults: function(data) {
+                console.log(data)
+                  return { results: data.results };
+              }
+          },
+
+          // Другие настройки из data-атрибутов
+          minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
+          theme: $('#id_end_users').attr('data-theme'),
+          allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+          language: {
+               noResults: function() {
+              return `<button  type="button"
+              class="btn btn-primary"
+              onClick='task()'>+ Добавить</button>
+              </li>`;
+              }
+           },
+
+          escapeMarkup: function (markup) {
+              return markup;
+          }
+        });
+      });
+  </script>
+  {% endblock %}

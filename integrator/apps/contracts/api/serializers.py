@@ -11,10 +11,23 @@ class SupportLevelSerializer(serializers.ModelSerializer):
 class EquipmentSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(label = 'Идентификатор', required = False)
     DELETE = serializers.BooleanField(label = 'Удалить', default = False, required = False)
+    equipment_name = serializers.SerializerMethodField()
+    support_name = serializers.CharField(source='support.name', read_only=True)
     class Meta:
         model = ContractEquipmentModel
-        fields = ['id', 'sn', 'equipment', 'support', 'DELETE']
-
+        fields = ['id', 'sn', 'equipment', 'equipment_name', 'support', 'support_name', 'DELETE']
+    def get_equipment_name(self, obj):
+        """Получаем полное название оборудования через связанные модели"""
+        if obj.equipment:
+            parts = []
+            if obj.equipment.brand:
+                parts.append(obj.equipment.brand.name)
+            if obj.equipment.model:
+                parts.append(obj.equipment.model.name)
+            #if obj.equipment.type:
+                #parts.append(obj.equipment.type.name)
+            return ' '.join(parts) if parts else obj.equipment.name
+        return None
 
 class ContractDetailsSerializer(serializers.ModelSerializer):
     eqcontracts = EquipmentSerializer(many = True, required = False)
@@ -87,4 +100,4 @@ class ContractListSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(label = 'Наименование организации')
     class Meta:
         model = ContractModel
-        fields = ['id', 'number', 'organization_name']
+        fields = ['id', 'number', 'organization_name', 'signed', 'enddate']

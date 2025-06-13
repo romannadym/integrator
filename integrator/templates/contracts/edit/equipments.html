@@ -1,0 +1,103 @@
+{% load static %}
+<table class="table table-bordered dt-responsive table-striped align-middle dataTable no-footer dtr-inline" style="width: 100%;" id="contractEquipmentsTable">
+    <thead>
+        <tr>
+            <th>Идентификатор</th>
+            <th>Модель</th>
+            <th >Серийный номер</th>
+            <th>Поддержка</th>
+            <th>Действие</th>
+
+        </tr>
+    </thead>
+    <tbody class="list form-check-all" id="contractEquipments-list-data">
+
+    </tbody>
+    <tbody class="list form-check-all" id="contractEquipments-list-data-preloader">
+      <tr>
+          <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+          <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+          <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+          <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+          <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+      </tr>
+    </tbody>
+</table>
+
+<script type="text/javascript">
+  $(document).ready(function () {
+    var path = window.location.pathname;
+    var contractId = path.split('/').pop();
+    let contractEquipmentsTable = $('#contractEquipmentsTable').DataTable({
+       processing: true,
+       serverSide: true,
+       searching: true,
+       ajax: {
+           url: '/contracts/api/eqcontract/' + contractId,  // Путь к вашему API
+           type: 'GET',
+           data: function(d) {
+
+           },
+       },
+
+       columns: [
+         {
+           data:'id'
+         },
+         {
+           data:'equipment_name'
+         },
+         {
+           data:'sn'
+         },
+         {
+           data:'support_name'
+         },
+         {
+           data: 'id',
+           render: function(data, type, row) {
+                 // Создание ссылки на страницу деталей заявки с использованием id
+                 return `<div class="dropdown">
+                             <button class="btn btn-soft-secondary btn-sm dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                 <i class="ri-more-fill align-middle"></i>
+                             </button>
+                             <ul class="dropdown-menu dropdown-menu-end" style="">
+                                 <li>
+                                     <a class="dropdown-item remove-item-btn" data-delete-id="${data}" data-bs-toggle="modal" href="#deleteEquipment">
+                                         <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
+                                     </a>
+                                 </li>
+                             </ul>
+                         </div>`;
+           }
+         }
+       ],
+       columnDefs: [
+         {
+           targets: 0, // Первая колонка
+           width: "5%",
+           className: 'dt-center' // Встроенный класс DataTables
+         }
+       ],
+       paging: true,
+       lengthMenu: [[10, 15, 20, 25, 50], [10, 15, 20, 25, 50]],
+       order: [[0, 'default']],
+       language: {
+           url: '/static/assets/js/table-ru.json'
+       },
+       stateSave: true, // Сохранение состояния таблицы
+       // Убедитесь, что данные возвращаются в правильном формате
+       deferRender: true, // Ускоряет при большом количестве данных
+       drawCallback: function(settings) {
+         $('.add-btn').attr('disabled', false)
+         $('#contractEquipments-list-data').show()
+         $('#contractEquipments-list-data-preloader').remove()
+         // Инициализация тултипов после рендеринга таблицы
+         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+         tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+             new bootstrap.Tooltip(tooltipTriggerEl);
+         });
+       }
+     })
+  })
+</script>

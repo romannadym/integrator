@@ -45,7 +45,7 @@ class ContractForm(forms.ModelForm):
         model = ContractModel
         fields = '__all__'
         widgets = {
-            'client': ClientWidget(attrs = {'data-minimum-input-length': 0}, queryset = User.objects.filter(Q(groups__name = 'Заказчик') & Q(is_active = True))),
+            'client': ClientWidget(attrs = {'data-minimum-input-length': 0, 'class': 'js-example-basic-single form-select'}, queryset = User.objects.filter(Q(groups__name = 'Заказчик') & Q(is_active = True))),
             'end_users': ClientMultipleWidget(attrs = {'data-minimum-input-length': 0, 'multiple': 'multiple'}, queryset = User.objects.filter(Q(groups__name = 'Заказчик') & Q(is_active = True))),
             # 'client': forms.Select(queryset = User.objects.filter(Q(is_active = True) & ~Q(email = 'serindework@mail.ru'))),
             'signed': forms.DateInput(attrs = {'class': 'date'}),

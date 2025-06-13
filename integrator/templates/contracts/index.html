@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Список контрактов{% endblock title %}
+{% block page-title %}{{ label }}{% endblock page-title %}
+{% block pagecss %}
+    <!--datatable css-->
+    <link rel="stylesheet" href="/static/assets/css/dataTables.bootstrap5.min.css" />
+    <!--datatable responsive css-->
+    <link rel="stylesheet" href="/static/assets/css/responsive.bootstrap.min.css" />
+
+    <link rel="stylesheet" href="/static/assets/css/buttons.dataTables.min.css">
+    <!-- dropzone css -->
+    <link rel="stylesheet" href="/static/assets/libs/dropzone/dropzone.css" type="text/css" />
+
+    <!-- Filepond css -->
+    <link rel="stylesheet" href="/static/assets/libs/filepond/filepond.min.css" type="text/css" />
+    <link rel="stylesheet" href="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.css">
+
+{% endblock %}
+
+{% block page-subtitle %}Список контрактов{% endblock page-subtitle %}
+{% block menu-title %}Контракты{% endblock menu-title %}
+{% block content %}
+<div class="row">
+  <div class="col-lg-12">
+      <div class="card" id="ticketsList">
+          <div class="card-header border-0">
+              <div class="d-flex align-items-center">
+                  <h5 class="card-title mb-0 flex-grow-1">Контракты</h5>
+                  <div class="flex-shrink-0">
+                      <div class="d-flex flex-wrap gap-2">
+                          <button class="btn btn-danger add-btn" data-bs-toggle="modal" disabled data-bs-target="#showModalCreateTicket"><i class="ri-add-line align-bottom me-1" ></i> Создать контракт</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+          <div class="card-body">
+                  <table class="table table-bordered dt-responsive table-striped align-middle dataTable no-footer dtr-inline" style="width: 100%;" id="contractTable">
+                      <thead>
+                          <tr>
+                              <th>Идентификатор</th>
+                              <th>Номер договора</th>
+                              <th>Поставщик</th>
+                              <th >Начало договора</th>
+                              <th>Окончание договора</th>
+
+                          </tr>
+                      </thead>
+                      <tbody class="list form-check-all" id="contracts-list-data">
+
+                      </tbody>
+                      <tbody class="list form-check-all" id="contracts-list-data-preloader">
+                        <tr>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                        </tr>
+                      </tbody>
+                  </table>
+        </div>
+          <!--end card-body-->
+      </div>
+      <!--end card-->
+  </div>
+  <!--end col-->
+</div>
+<!--end row-->
+{% endblock content %}
+
+{% block pagescripts %}
+<script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}"  crossorigin="anonymous"></script>
+    <!--datatable js-->
+    <script src="/static/assets/js/pages/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.responsive.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/vfs_fonts.js"></script>
+    <script src="/static/assets/js/pages/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/select2.min.js"></script>
+    <script src="/static/assets/libs/sweetalert2/sweetalert2.min.js"></script>
+    <!-- dropzone min -->
+    <script src="/static/assets/libs/dropzone/dropzone-min.js"></script>
+    <!-- filepond js -->
+    <script src="/static/assets/libs/filepond/filepond.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-file-validate-size/filepond-plugin-file-validate-size.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-image-exif-orientation/filepond-plugin-image-exif-orientation.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-file-encode/filepond-plugin-file-encode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
+    <script type="text/javascript">
+      let contractTable;
+      function initializeTables(){
+        ticketTable = $('#contractTable').DataTable({
+           processing: true,
+           serverSide: true,
+           searching: true,
+           ajax: {
+               url: '/contracts/api/contracts/',  // Путь к вашему API
+               type: 'GET',
+               data: function(d) {
+                   // Добавление данных для поиска
+               },
+           },
+
+           columns: [
+           { data: 'id' },
+
+           {
+             data: 'number' ,
+             render: function(data, type, row) {
+                 // Создание ссылки на страницу деталей заявки с использованием id
+                 return `<a href="/contracts/edit_contract/${row.id}" class="fw-medium link-primary contract-id">${row.number}</a>`;
+             }
+           },
+           { data: 'organization_name' ,
+             render: function(data, type, row) {
+                 // Создание ссылки на страницу деталей заявки с использованием id
+                 return `<a href="/contracts/edit_contract/${row.id}" class="fw-medium link-primary contract-id">${row.organization_name}</a>`;
+             }
+           },
+           { data: 'signed' },
+           { data: 'enddate' }
+           ],
+           columnDefs: [
+             {
+               targets: 0, // Первая колонка
+               width: "5%",
+               className: 'dt-center' // Встроенный класс DataTables
+             }
+           ],
+           paging: true,
+           lengthMenu: [[10, 15, 20, 25, 50], [10, 15, 20, 25, 50]],
+           order: [[0, 'default']],
+           language: {
+               url: '/static/assets/js/table-ru.json'
+           },
+           stateSave: true, // Сохранение состояния таблицы
+           // Убедитесь, что данные возвращаются в правильном формате
+           deferRender: true, // Ускоряет при большом количестве данных
+           drawCallback: function(settings) {
+             $('.add-btn').attr('disabled', false)
+             $('#contracts-list-data').show()
+             $('#contracts-list-data-preloader').remove()
+           }
+       });
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+
+          initializeTables();
+
+        });
+
+    </script>
+
+{% endblock %}

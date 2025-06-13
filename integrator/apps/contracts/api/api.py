@@ -1,13 +1,12 @@
-from django.db.models import F
-
-from rest_framework import status
+from django.db.models import Q, F
+from rest_framework import status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.exceptions import APIException
 
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse, inline_serializer
 
 from integrator.apps.parsers import NestedMultipartParser
 
@@ -112,15 +111,90 @@ class ContractsListAPIView(APIView):
     parser_classes = [JSONParser, NestedMultipartParser]
 
     @extend_schema(
-        summary = 'Список договоров',
-        description = '<ol><li>"id" - Идентификатор договора</li>\
-        <li>"number" - Номер договора</li><li>"organization_name" - Наименование организации</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = ContractListSerializer(many = True))}
+        summary='Список договоров (для DataTables)',
+        description='''<ol>
+            <li>Возвращает данные в формате, совместимом с jQuery DataTables</li>
+            <li>Поддерживает серверную обработку: пагинацию, сортировку и фильтрацию</li>
+        </ol>''',
+        parameters=[
+            OpenApiParameter(name='draw', type=int, description='Счетчик запросов DataTables'),
+            OpenApiParameter(name='start', type=int, description='Индекс первой записи'),
+            OpenApiParameter(name='length', type=int, description='Количество записей на странице'),
+            OpenApiParameter(name='search[value]', type=str, description='Строка поиска'),
+            OpenApiParameter(name='order[0][column]', type=int, description='Индекс сортируемой колонки'),
+            OpenApiParameter(name='order[0][dir]', type=str, description='Направление сортировки (asc/desc)'),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description='Данные для DataTables',
+                response=inline_serializer(
+                    name='DataTablesResponse',
+                    fields={
+                        'draw': serializers.IntegerField(),
+                        'recordsTotal': serializers.IntegerField(),
+                        'recordsFiltered': serializers.IntegerField(),
+                        'data': ContractListSerializer(many=True)
+                    }
+                )
+            )
+        }
     )
     def get(self, request, *args, **kwargs):
-        contracts = ContractModel.objects.annotate(organization_name = F('client__organization__name')).values('id', 'number', 'organization_name')
+        # Получаем параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '')
 
-        return Response(contracts, status = status.HTTP_200_OK)
+        # Базовый запрос
+        queryset = ContractModel.objects.annotate(
+            organization_name=F('client__organization__name')
+        ).values('id', 'number', 'organization_name', 'signed', 'enddate')
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(number__icontains=search_value) |
+                Q(organization_name__icontains=search_value)
+            )
+
+        # Получаем общее количество записей (до фильтрации)
+        records_total = ContractModel.objects.count()
+
+        # Получаем количество отфильтрованных записей
+        records_filtered = queryset.count()
+
+        # Применяем сортировку
+        order_column = request.GET.get('order[0][column]', '0')
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок DataTables на поля модели
+        column_map = {
+            '0': 'id',
+            '1': 'number',
+            '2': 'organization_name',
+            '3': 'signed',
+            '4': 'enddate'
+        }
+
+        order_field = column_map.get(order_column, 'id')
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+
+        queryset = queryset.order_by(order_field)
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': list(queryset)
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary = 'Добавление договора',
@@ -148,6 +222,102 @@ class ContractsListAPIView(APIView):
     tags = ['Договоры (Done)']
 )
 
+class EqContractsEditAPIView(APIView):
+    permission_classes = [IsAdminUser, ]
+    parser_classes = [JSONParser, NestedMultipartParser]
+
+    @extend_schema(
+        summary='Список оборудования контракта',
+        description='<ol><li>"id" - Идентификатор договора</li><li>"number" - Номер договора</li><li>"client" - Идентификатор поставщика</li>'
+                    '<li>"end_users" - Список идентификаторов конечных пользователей</li><li>"dc_address" - Адрес ЦОД</li>'
+                    '<li>"signed" - Дата начала договора в формате dd.mm.yyyy</li><li>"enddate" - Дата окончания договора в формате dd.mm.yyyy</li>'
+                    '<li>"link" - Ссылка на договор</li><li>"eqcontracts" - Оборудование по договору (с пагинацией)</li></ol>',
+        parameters=[
+            OpenApiParameter(name='contract_id', description='Идентификатор договора', type=int, required=True, location=OpenApiParameter.PATH),
+            OpenApiParameter(name='draw', description='Номер запроса DataTables', type=int, required=False, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name='start', description='Индекс первой записи', type=int, required=False, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name='length', description='Количество записей на странице', type=int, required=False, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name='search[value]', description='Поисковый запрос', type=str, required=False, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name='order[0][column]', description='Номер столбца для сортировки', type=int, required=False, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name='order[0][dir]', description='Направление сортировки (asc/desc)', type=str, required=False, location=OpenApiParameter.QUERY),
+        ],
+        responses={
+            (200, 'application/json'): OpenApiResponse(response=ContractDetailsSerializer())
+        }
+    )
+    def get(self, request, contract_id, *args, **kwargs):
+        contract = GetContract(contract_id)
+        # Получаем параметры от DataTables
+        draw = int(request.query_params.get('draw', 1))
+        start = int(request.query_params.get('start', 0))
+        length = int(request.query_params.get('length', 10))
+        search_value = request.query_params.get('search[value]', '')
+
+        # Получаем список оборудования
+        eqcontracts = contract.eqcontracts.all()
+
+        # Применяем поиск
+        if search_value:
+            eqcontracts = eqcontracts.filter(
+                Q(sn__icontains=search_value) |
+                Q(equipment__name__icontains=search_value) |
+                Q(support__name__icontains=search_value)
+                )
+
+        # Применяем сортировку (если параметры указаны)
+        order_column = request.query_params.get('order[0][column]')
+        order_dir = request.query_params.get('order[0][dir]', 'asc')
+        default_order = 'id'  # Сортировка по умолчанию
+
+        if order_column is not None:
+            order_column = int(order_column)
+            # Маппинг столбцов DataTables на поля модели
+            column_mapping = {
+                0: 'id',
+                1: 'sn',
+                2: 'equipment__name',
+                3: 'support__name',
+            }
+            if order_column in column_mapping:
+                order_field = column_mapping[order_column]
+                if order_dir == 'desc':
+                    order_field = f'-{order_field}'
+                eqcontracts = eqcontracts.order_by(order_field)
+            else:
+                # Если номер столбца не найден в маппинге, используем сортировку по умолчанию
+                eqcontracts = eqcontracts.order_by(default_order)
+        else:
+            # Если параметры сортировки не указаны, используем сортировку по умолчанию
+            eqcontracts = eqcontracts.order_by(default_order)
+
+        # Получаем общее количество записей (до пагинации)
+        records_total = contract.eqcontracts.count()
+        records_filtered = eqcontracts.count()
+
+        # Применяем пагинацию
+        eqcontracts = eqcontracts[start:start + length]
+
+        # Сериализуем данные (предполагая, что у вас есть EquipmentSerializer)
+        serializer = EquipmentSerializer(eqcontracts, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data,  # Используем сериализованные данные
+            'contract': {
+                'id': contract.id,
+                'number': contract.number,
+                'signed': contract.signed.strftime('%d.%m.%Y') if contract.signed else None,
+                'enddate': contract.enddate.strftime('%d.%m.%Y') if contract.enddate else None,
+                'client': contract.client_id,
+                'end_users': list(contract.end_users.values_list('id', flat=True)),
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 class ContractsEditAPIView(APIView):
     permission_classes = [IsAdminUser, ]
     parser_classes = [JSONParser, NestedMultipartParser]
@@ -166,7 +336,12 @@ class ContractsEditAPIView(APIView):
     def get(self, request, contract_id, *args, **kwargs):
         contract = GetContract(contract_id)
         serializer = ContractDetailsSerializer(contract)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        is_datatable_request = request.query_params.get('datatables') == 'true'
+        if is_datatable_request:
+            # Обработка запроса от DataTables для eqcontracts
+            return Response(serializer.data.eqcontracts, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary='Изменение договора',

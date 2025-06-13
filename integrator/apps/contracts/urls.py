@@ -3,7 +3,7 @@ from contracts.views import SupportLevelsListView, AddSupportLevelView, EditSupp
 from contracts.views import ContractsListView, AddContractView, EditContractView, DeleteContractView
 
 from contracts.api.api import SupportLevelsListAPIView, SupportLevelEditAPIView
-from contracts.api.api import ContractsListAPIView, ContractsEditAPIView, ContractsDeleteAPIView
+from contracts.api.api import ContractsListAPIView, ContractsEditAPIView, ContractsDeleteAPIView, EqContractsEditAPIView
 
 urlpatterns = [
     path('levels/', SupportLevelsListView, name = 'list-levels'),
@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/contracts/', ContractsListAPIView.as_view(), name = 'list-contracts-api'),
     path('api/contracts/<int:contract_id>', ContractsEditAPIView.as_view(), name = 'edit-contracts-api'),
     path('api/contracts/delete/', ContractsDeleteAPIView.as_view(), name = 'contracts-delete-api'),
+    path('api/eqcontract/<int:contract_id>', EqContractsEditAPIView.as_view(), name = 'edit-eqcontracts-api'),
 ]
