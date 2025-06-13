@@ -318,6 +318,53 @@ class EqContractsEditAPIView(APIView):
 
         return Response(response_data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+    summary='Добавить оборудование к договору',
+    description='Добавляет новое оборудование к указанному договору',
+    request=EquipmentCreateSerializer,
+    responses={
+            201: OpenApiResponse(description='Оборудование успешно добавлено', response=EquipmentSerializer()),
+            400: OpenApiResponse(description='Неверные данные'),
+            404: OpenApiResponse(description='Договор не найден')
+        }
+    )
+    def post(self, request, contract_id, *args, **kwargs):
+        try:
+            # Получаем договор и убеждаемся, что он существует
+            contract = ContractModel.objects.get(pk=contract_id)
+        except ContractModel.DoesNotExist:
+            return Response(
+                {'error': 'Договор не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Создаем копию данных запроса
+        data = request.data.copy()
+        
+        # Добавляем contract в данные, а не contract_id
+        data['contract'] = contract.id  # Здесь используется ID договора
+
+        serializer = EquipmentCreateSerializer(data=data)
+        if serializer.is_valid():
+            try:
+                # Сохраняем оборудование с привязкой к договору
+                equipment = serializer.save()
+                response_serializer = EquipmentSerializer(equipment)
+                return Response(
+                    response_serializer.data,
+                    status=status.HTTP_201_CREATED
+                )
+            except IntegrityError as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
 class ContractsEditAPIView(APIView):
     permission_classes = [IsAdminUser, ]
     parser_classes = [JSONParser, NestedMultipartParser]

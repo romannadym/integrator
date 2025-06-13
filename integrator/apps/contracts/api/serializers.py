@@ -101,3 +101,14 @@ class ContractListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractModel
         fields = ['id', 'number', 'organization_name', 'signed', 'enddate']
+        
+class EquipmentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContractEquipmentModel
+        fields = ['equipment', 'sn', 'support', 'contract']  # Добавлено contract
+        extra_kwargs = {
+            'equipment': {'required': True},
+            'sn': {'required': True},
+            'support': {'required': True},
+            'contract': {'required': True}  # Убедитесь, что contract обязателен
+        }
