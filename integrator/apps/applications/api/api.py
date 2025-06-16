@@ -507,6 +507,19 @@ class ApplicationsListAPIViewNew(APIView):
         is_staff = is_admin or is_engineer
         prms = {}
         # Начальный queryset
+        # Если пользователь не админ - показываем только его заявки
+        if not is_admin:
+            client = User.objects.filter(id = request.user.id)\
+                .annotate(
+                    fio = Trim(Concat('last_name', Value(' '), 'first_name')),
+                    organization_name = F('organization__name')
+                )\
+                .values('id', 'fio', 'inn', 'address', 'email', 'phone', 'organization_id', 'organization_name')[0]
+
+            client['contracts'] = GetClientsContractsAPIView().get(request).data
+
+            client = ClientSerializer(client).data
+            prms['client__organization_id'] = client['organization_id']
         tickets = ApplicationModel.objects.filter(**prms)\
             .annotate(
                 organization = Subquery(User.objects.filter(id = OuterRef('client_id')).values('organization__name')),
@@ -695,7 +708,8 @@ class ApplicationsListAPIViewNew(APIView):
             'recordsFiltered': paginator.count,
             'data': data,
             'statusStats': list(status_stats),
-            'ticketCount': ticket_count
+            'ticketCount': ticket_count,
+            'is_staff' : is_staff
         })
 
 class ApplicationsExcelAPIView(APIView):
@@ -1211,8 +1225,16 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         ).get(id=application_id)
 
         serializer = ApplicationDetailsSerializer(application)
-        history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
-        history_sorted = sorted(history, key=lambda x: x['pubdate'])
+        if permissions['is_staff']:
+            history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
+        else:
+            history_sorted = ApplicationCommentsAPIView().get(request = request, application_id = application_id).data
+        if permissions['is_staff']:
+            history_sorted = sorted(history, key=lambda x: x['pubdate'])
+        #else:
+            #history_sorted = sorted(history, key=lambda x: x['pubdate'])
+        print("History data type:", type(history_sorted))
+        print("Sample content:", history_sorted)  # Первые 3 элемента
         spares = SparesListAPIView.as_view()(request._request).data
         Statuses = AppStatusSerializer(StatusModel.objects.all(), many=True).data
         Priority = AppPrioritySerializer(AppPriorityModel.objects.all(), many=True).data

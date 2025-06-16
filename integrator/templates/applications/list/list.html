@@ -95,14 +95,18 @@
                               </select>
                           </div>
                       </div>
+                      {% if permissions.is_staff %}
                       <div class="col-xxl-3 col-sm-4">
+
                           <div class="input-light">
                               <h6 class="fw-semibold">Инженер</h6>
                               <select class="js-example-basic-single" name="engineer" id="engineer">
                                 <option value="">----</option>
                               </select>
                           </div>
+
                       </div>
+                        {% endif %}
                       <!--end col-->
                       <div class="col-xxl-1 col-sm-4 d-flex flex-column">
                           <button type="button" class="btn btn-primary w-100 mt-auto" onclick="SearchData();"> <i class="ri-equalizer-fill me-1 align-bottom"></i>
@@ -124,12 +128,16 @@
                           <tr>
                               <th>Идентификатор</th>
                               <th>Описание</th>
+                              {% if permissions.is_staff %}
                               <th>Заказчик</th>
                               <th>Пользователь</th>
+                              {% endif %}
                               <th>Оборудование</th>
                               <th>Назначенный инженер</th>
                               <th >Дата создания</th>
+                              {% if permissions.is_staff %}
                               <th>Приоритет</th>
+                              {% endif %}
                               <th>Статус</th>
                               <th>Дата изменения</th>
                               <th>Действия</th>
@@ -143,12 +151,16 @@
                         <tr>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            {% if permissions.is_staff %}
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            {% endif %}
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            {% if permissions.is_staff %}
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
-                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
-                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            {% endif %}
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
@@ -241,8 +253,10 @@
                   },
                   orderable: false
                 },
+                {% if permissions.is_staff %}
                 { data: 'organization_name', orderable: false },
                 { data: 'end_user_organization_name', orderable: false },
+                {% endif %}
                 { data: 'equipment_name', orderable: false},
                 {
                   data: 'engineers_list',
@@ -261,6 +275,7 @@
                   }
                 },
                 { data: 'formatted_date' },
+                {% if permissions.is_staff %}
                 {
                   data: 'priority_name',
                   render: function(data, type, row) {
@@ -285,6 +300,7 @@
                   },
                   orderable: false
                 },
+                {% endif %}
                 {
                   data: 'status_name',
                   render: function(data, type, row) {
@@ -317,27 +333,31 @@
                   data: 'id',
                   render: function(data, type, row) {
                       // Создание ссылки на страницу деталей заявки с использованием id
+                      let btnActions = ``;
+                      {% if permissions.is_staff %}
+                        btnActions = `<li><a class="dropdown-item edit-item-btn" href="#showModalEditTicket"
+                               data-bs-toggle="modal"
+                               data-edit-id="${data}"
+                               data-edit-priority-id="${row.priority_id}"
+                               data-edit-equipment-name="${row.equipment_name}"
+                               data-edit-problem="${row.problem}"
+                               data-edit-organization-user-id="${row.organization_user_id}"
+                               data-edit-status-id="${row.status_id}"
+                               data-edit-engineer-id="${row.engineer_id}"
+                               ><i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать</a></li>
+                        <li>
+                            <a class="dropdown-item remove-item-btn" data-delete-id="${data}" data-bs-toggle="modal" href="#deleteOrder">
+                                <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
+                            </a>
+                        </li>`;
+                      {% endif %}
                       return `<div class="dropdown">
                                   <button class="btn btn-soft-secondary btn-sm dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                       <i class="ri-more-fill align-middle"></i>
                                   </button>
                                   <ul class="dropdown-menu dropdown-menu-end" style="">
                                       <li><button class="dropdown-item" onclick="location.href = '/applications/edit/${data}';"><i class="ri-eye-fill align-bottom me-2 text-muted"></i> Смотреть</button></li>
-                                      <li><a class="dropdown-item edit-item-btn" href="#showModalEditTicket"
-                                             data-bs-toggle="modal"
-                                             data-edit-id="${data}"
-                                             data-edit-priority-id="${row.priority_id}"
-                                             data-edit-equipment-name="${row.equipment_name}"
-                                             data-edit-problem="${row.problem}"
-                                             data-edit-organization-user-id="${row.organization_user_id}"
-                                             data-edit-status-id="${row.status_id}"
-                                             data-edit-engineer-id="${row.engineer_id}"
-                                             ><i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать</a></li>
-                                      <li>
-                                          <a class="dropdown-item remove-item-btn" data-delete-id="${data}" data-bs-toggle="modal" href="#deleteOrder">
-                                              <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
-                                          </a>
-                                      </li>
+                                      ${btnActions}
                                   </ul>
                               </div>`;
                   },

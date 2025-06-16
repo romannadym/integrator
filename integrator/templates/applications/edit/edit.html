@@ -68,6 +68,7 @@
                             <!--end row-->
                         </div>
                         <!--end col-->
+                        {% if permissions.is_staff %}
                         <div class="col-md-auto mt-md-0 mt-4">
                             <div class="hstack gap-1 flex-wrap">
                                 <button type="button" class="btn py-0 fs-16 text-body" id="settingDropdown" data-bs-toggle="dropdown">
@@ -79,6 +80,7 @@
                                 </ul>
                             </div>
                         </div>
+                        {% endif %}
                         <!--end col-->
                     </div>
                     <!--end row-->
@@ -99,9 +101,11 @@
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="tab" href="#border-navs-zip" role="tab">ЗИП</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#border-navs-log" role="tab">Лог</a>
-                </li>
+                {% if permissions.is_staff %}
+                  <li class="nav-item">
+                      <a class="nav-link" data-bs-toggle="tab" href="#border-navs-log" role="tab">Лог</a>
+                  </li>
+                {% endif %}
             </ul><!-- Tab panes -->
           </div>
           <div class="card-body bg-light">
@@ -115,9 +119,11 @@
                     <div class="tab-pane" id="border-navs-zip" role="tabpanel">
                       {% include "applications/edit/ticketszip.html" %}
                     </div>
+                    {% if permissions.is_staff %}
                     <div class="tab-pane" id="border-navs-log" role="tabpanel">
                       {% include "applications/edit/logs.html" %}
                     </div>
+                    {% endif %}
 
               </div>
             </div>

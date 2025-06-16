@@ -11,12 +11,22 @@
                 <div class="modal-body">
                     <input type="hidden" id="tasksId" />
                     <div class="row g-3">
+                      {% if permissions.is_staff %}
                       <div class="col-lg-12">
                           <h6 class="fw-semibold">Заказчик</h6>
                           <select class="js-example-basic-single" name="client" id="id_client" required>
                               <option value=""></option>
                           </select>
+
                       </div>
+                      {% else %}
+                        <div class="" style="display:none">
+                          <select class="hidden" name="client" id="id_client" >
+                                <option value="{{ request.user.id }}" selected>---</option>
+                          </select>
+                        </div>
+
+                      {% endif %}
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Приоритет заявки:</h6>
@@ -197,6 +207,33 @@
                   }
               });
       });
+
+      {% if not permissions.is_staff %}
+
+          let client_id = $('#id_client').val();  // сохраняем значение заранее
+          if(!client_id){
+            return
+          }
+          $.ajax({
+              url: '/applications/get_contacts/',
+              method: 'POST',
+              headers: { 'X-CSRFToken': getCookie('csrftoken') },
+              data: { client: client_id },
+              dataType: 'json',
+              success: function(result) {
+                $('#id_contact').empty()
+                  if(Array.isArray(result) && result.length > 0){
+                    result.forEach(function (item){
+                      $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
+                    })
+                    $('#id_contact').val(result[0].id)
+
+                  }
+                  console.log(client_id)
+                  EquipmentList(client_id)
+              }
+          });
+      {% endif  %}
 
       function EquipmentList(client_id) {
           if ( !client_id) return;

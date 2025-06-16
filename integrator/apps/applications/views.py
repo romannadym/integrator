@@ -226,9 +226,13 @@ def AddApplicationView(request): #Создание заявки
 
 @login_required
 def EditApplicationView(request, application_id): #Редактирование заявки
-    if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
-        return redirect('login')
-
+    #if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
+        #return redirect('login')
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     from applications.models import AppStatusModel
     from applications.forms import EditApplicationForm, AppStatusFormset, AppSpareFormset, EditAppDocumentsFormset
 
@@ -247,7 +251,7 @@ def EditApplicationView(request, application_id): #Редактирование 
 
 
 
-    context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
+    context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'permissions': permissions, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
     return render(request, 'applications/edit/edit.html', context)
 
 @login_required
