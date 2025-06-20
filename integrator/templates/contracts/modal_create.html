@@ -1,0 +1,255 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalAddContract" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Новый контракт</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data" class="tablelist-form" autocomplete="off" id="add-contract-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                  <div class="row-g-3">
+                    {% for field in form %}
+                      <div class="col-lg-12 mt-3">
+                        <h6 for="{{ field.id_for_label }}" class="fw-semibold">
+                            {{ field.label }}
+                        </h6>
+                        {{ field.errors }}
+                        {% if field.name == 'signed' or field.name == 'enddate' %}
+                            <!-- Поля даты -->
+                            <input
+                                type="text"
+                                data-provider="flatpickr" data-date-format="d.m.Y" data-locale="ru"
+                                class="form-control"
+                                id="{{ field.name }}"
+                                name="{{ field.name }}"
+                                value="{{ field.value|date:'d.m.Y'|default_if_none:'' }}"
+                            >
+                        {% elif field.name != 'client' and field.name != 'end_users' %}
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="{{ field.name }}"
+                                name="{{ field.name }}"
+                                value="{{ field.value|default_if_none:'' }}"
+                            >
+                        {% else %}
+                            {{ field }}
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="submit" class="btn btn-success" id="add-btn">Создать</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+  $(document).ready(function () {
+
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              document.cookie.split(';').forEach(cookie => {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                  }
+              });
+          }
+          return cookieValue;
+      }
+
+      $('#add-contract-form').on('submit', function(evn) {
+          evn.preventDefault();
+        let submitButton = $('#add-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+        submitButton.prop('disabled', true);
+        // Сохраняем текст, если надо восстановить потом
+        let originalText = submitButton.html();
+
+        // Блокируем и добавляем фиксированные размеры
+        let buttonWidth = submitButton.outerWidth();
+        let buttonHeight = submitButton.outerHeight();
+
+        submitButton.prop('disabled', true).css({
+          width: buttonWidth,
+          height: buttonHeight
+        }).html(`
+          <span class="d-flex justify-content-center align-items-center w-100 h-100">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          </span>
+        `);
+        const endUsers = $('#id_end_users').val() || []; // ['62', '63']
+        let formData = new FormData(this);
+        formData.delete('end_users'); // Удаляем одиночное значение
+        console.log(endUsers)
+            formData.append('end_users', JSON.stringify(endUsers));
+        // Для отладки - выводим данные формы в консоль
+        for (var pair of formData.entries()) {
+          //  console.log(pair[0] + ': ' + pair[1]);
+        }
+        let eqcontracts = [];
+        formData.append('eqcontracts', JSON.stringify(eqcontracts));
+        $.ajax({
+            url: '/contracts/api/contracts/',
+            method: 'POST',
+            data: formData,
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function(data) {
+                console.log(data)
+                if (data.message) {
+                  alertSuccess('Контракт успешно создан')
+                  $('.create-contracts-success').on('click', () => window.location.reload());
+
+                } else {
+                  let errorText = Object.entries(data).map(([field, msg]) => `<p>"${field}" - ${msg[0]}</p>`).join('');
+                  alertError(data.error)
+                }
+            },
+            error: function(e) {
+              console.log(e)
+              let error = '';
+              if(e.status){
+                error = 'Статус ошибки - ' + e.status;
+              }
+              alertError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+            },
+            complete: function() {
+                // Разблокируем кнопку после завершения запроса
+                submitButton.prop('disabled', false);
+                submitButton.html('Создать'); // Восстанавливаем текст кнопки
+            }
+        });
+      })
+
+      $('#id_client').select2({
+          dropdownParent: $('#showModalAddContract'),
+          ajax: {
+              // Правильное чтение data-ajax--url
+              url: $('#id_client').attr('data-ajax--url'),
+
+              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+              data: function(params) {
+                  return {
+                      term: params.term,
+                      _type: 'query',
+                      field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                  };
+              },
+
+              // Дополнительные параметры из data-атрибутов
+              cache: $('#id_client').attr('data-ajax--cache') === 'true',
+              dataType: 'json',
+              delay: 250,
+              processResults: function(data) {
+                console.log(data)
+                  return { results: data.results };
+              }
+          },
+
+          // Другие настройки из data-атрибутов
+          minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
+          theme: $('#id_client').attr('data-theme'),
+          allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+          language: {
+               noResults: function() {
+              return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddUser"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+              }
+           },
+
+          escapeMarkup: function (markup) {
+              return markup;
+          }
+    });
+
+    $('#id_end_users').select2({
+        ajax: {
+            // Правильное чтение data-ajax--url
+            url: $('#id_end_users').attr('data-ajax--url'),
+
+            // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+            data: function(params) {
+                return {
+                    term: params.term,
+                    _type: 'query',
+                    field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                };
+            },
+
+            // Дополнительные параметры из data-атрибутов
+            cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+            dataType: 'json',
+            delay: 250,
+            processResults: function(data) {
+              console.log(data)
+                return { results: data.results };
+            }
+        },
+
+        // Другие настройки из data-атрибутов
+        minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
+        theme: $('#id_end_users').attr('data-theme'),
+        allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+        language: {
+             noResults: function() {
+               return `<button  type="button"
+               class="btn btn-primary add-organization">+ Добавить</button>
+               </li>`;
+            }
+         },
+
+        escapeMarkup: function (markup) {
+            return markup;
+        }
+      });
+
+    })
+  function alertSuccess (text)
+  {
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Успех !</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 create-contracts-success',
+        cancelButtonText: 'Oк',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
+  function alertError(text){
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Упс...! Что то пошло не так!</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 create-contracts-error',
+        cancelButtonText: 'Закрыть',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+</script>

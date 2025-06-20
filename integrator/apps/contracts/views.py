@@ -7,7 +7,7 @@ from contracts.api.api import ContractsListAPIView
 from contracts.api.api import GetSupportLevel, GetContract
 
 from contracts.forms import LevelForm, LevelDeleteForm, ContractForm, EquipmentForm, EquipmentFormset, ContractDeleteForm
-
+from accounts.forms import  ContactForm
 @login_required
 def SupportLevelsListView(request):
     if not request.user.groups.filter(name = 'Администратор').exists():
@@ -62,8 +62,11 @@ def ContractsListView(request):
         'edit_link': 'edit-contract',
         'delete_link': 'contracts-delete-api',
     }
-
-    context = {'items': items, 'cols': cols, 'label': 'Контракты', 'links': links}
+    form = ContractForm()
+    formsets = [
+        {'key': 'contacts', 'formset': [ContactForm()], 'label': 'Контактное лицо'},
+    ]
+    context = {'items': items, 'form':form, 'formsets': formsets,  'cols': cols, 'label': 'Контракты', 'links': links}
 
     return render(request, 'contracts/index.html', context)
 
@@ -111,6 +114,7 @@ def EditContractView(request, contract_id):
                 contract.save()
                 form.save_m2m()
                 formset.save()
+            form.save_m2m()
             contract.save()
             return redirect('list-contracts')
         else:

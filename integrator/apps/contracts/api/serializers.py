@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
 from contracts.models import SupportLevelModel, ContractModel, ContractEquipmentModel
-
+from django.contrib.auth import get_user_model
+User = get_user_model()  # Правильный способ получить модель пользователя
 class SupportLevelSerializer(serializers.ModelSerializer):
     priority = serializers.IntegerField(default = 0)
     class Meta:
@@ -33,17 +34,26 @@ class ContractDetailsSerializer(serializers.ModelSerializer):
     eqcontracts = EquipmentSerializer(many = True, required = False)
     signed = serializers.DateField(label = 'Начало договора', format = '%d.%m.%Y')
     enddate = serializers.DateField(label = 'Окончание договора', format = '%d.%m.%Y')
-
+    # Явно объявляем поле для ManyToMany
+    end_users = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        required=False
+    )
 
     class Meta:
         model = ContractModel
         fields = '__all__'
+        extra_kwargs = {
+            'eqcontracts': {'required': False},  # Делаем поле необязательным
+        }
 
     def create(self, validated_data):
         equipments = validated_data.pop('eqcontracts')
-        end_users = validated_data.pop('end_users', [])  # Получаем конечных пользователей
+        end_users_ids = validated_data.pop('end_users', [])
         contract = ContractModel.objects.create(**validated_data)
-
+        # Добавляем end_users (ManyToMany)
+        contract.end_users.set(end_users_ids)
         if equipments:
             equipments_instance = []
             for equipment in equipments:
@@ -101,7 +111,7 @@ class ContractListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractModel
         fields = ['id', 'number', 'organization_name', 'signed', 'enddate']
-        
+
 class EquipmentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractEquipmentModel

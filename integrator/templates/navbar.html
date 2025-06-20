@@ -55,6 +55,11 @@
                         <i class="ri-honour-line"></i> <span data-key="t-administration">Контракты</span>
                     </a>
                 </li>
+                <li class="nav-item {% if 'accounts' in request.path %}active{% endif %}">
+                    <a class="nav-link menu-link {% if 'accounts' in request.path %}active{% endif %}" href="{% url 'list-user' %}">
+                        <i class="ri-group-line"></i> <span data-key="t-users">Пользователи</span>
+                    </a>
+                </li>
 
             </ul>
         </div>

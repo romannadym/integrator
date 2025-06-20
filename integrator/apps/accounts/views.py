@@ -24,7 +24,7 @@ def UserListView(request):
     }
 
     context = {'items': items, 'cols': cols, 'label': 'Справочник "Пользователи"', 'links': links}
-    return render(request, 'admin/list.html', context)
+    return render(request, 'users/index.html', context)
 
 @login_required
 def AddUserView(request):
@@ -46,7 +46,7 @@ def EditUserView(request, user_id):
     form = EditUserForm(instance = user)
 
     context = {'form': form, 'groups': groups, 'search': True, 'link': 'list-user', 'delete_link': 'delete-user'}
-    return render(request, 'admin/edit_user.html', context)
+    return render(request, 'users/edit.html', context)
 
 @login_required
 def DeleteUserView(request, user_id):

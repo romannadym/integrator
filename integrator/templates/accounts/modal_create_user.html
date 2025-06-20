@@ -1,0 +1,249 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalAddUser" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Новый пользователь</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data" class="tablelist-form" autocomplete="off" id="add-user-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                  <div class="row-g-3">
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Адрес электронной почты:</h6>
+                        <input type="email" name="email" class="form-control" maxlength="254" autofocus="" required="" id="id_email">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Пароль:</h6>
+                        <input type="password" name="password1" autocomplete="new-password" class="form-control" required="" id="id_password1" aria-autocomplete="list">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Подтверждение пароля:</h6>
+                        <input type="password" name="password2" autocomplete="new-password" class="form-control" required="" id="id_password2">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Имя:</h6>
+                        <input type="text" name="first_name" class="form-control" maxlength="150" id="id_first_name">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Фамилия:</h6>
+                        <input type="text" name="last_name" class="form-control" maxlength="150" id="id_last_name">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">ИНН:</h6>
+                        <input type="text" name="inn" class="form-control" maxlength="12" id="id_inn">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Организация:</h6>
+                        <select name="organization" lang="None"  required="" id="id_organization">
+                          <option value="">----</option>
+                        </select>
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Адрес:</h6>
+                        <input type="text" name="address" class="form-control" maxlength="300" id="id_address">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Телефон:</h6>
+                        <input type="text" name="phone" class="form-control" maxlength="18" id="id_phone">
+                      </div>
+                      <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold">Идентификатор в телеграме:</h6>
+                        <input type="text" name="telegram" class="form-control" maxlength="15" id="id_telegram">
+                      </div>
+                  </div>
+                </div>
+                <input type="hidden" name="add_group" value="3">
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" id="close-u-modal" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-success" id="add-u-btn">Создать</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function(){
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            document.cookie.split(';').forEach(cookie => {
+                cookie = cookie.trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                }
+            });
+        }
+        return cookieValue;
+    }
+
+    $('#close-u-modal').on('click', function(){
+      $('#showModalAddContract').modal('show')
+    })
+
+    $('#id_organization').select2({
+        dropdownParent: $('#showModalAddUser'),
+        ajax: {
+            // Правильное чтение data-ajax--url
+            url: '/accounts/api/organizations/',
+
+            // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+            data: function(params) {
+                return {
+                    term: params.term,
+                };
+            },
+
+            // Дополнительные параметры из data-атрибутов
+            dataType: 'json',
+            delay: 250,
+            processResults: function(data) {
+              console.log(data)
+                return { results: data.results };
+            }
+        },
+
+        // Другие настройки из data-атрибутов
+        minimumInputLength: 0,
+        language: {
+             noResults: function() {
+            return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddOrg"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+            }
+         },
+
+        escapeMarkup: function (markup) {
+            return markup;
+        }
+    });
+
+    $('#add-user-form').on('submit', function(evn) {
+        evn.preventDefault();
+      let submitButton = $('#add-u-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+      submitButton.prop('disabled', true);
+      // Сохраняем текст, если надо восстановить потом
+      let originalText = submitButton.html();
+
+      // Блокируем и добавляем фиксированные размеры
+      let buttonWidth = submitButton.outerWidth();
+      let buttonHeight = submitButton.outerHeight();
+
+      submitButton.prop('disabled', true).css({
+        width: buttonWidth,
+        height: buttonHeight
+      }).html(`
+        <span class="d-flex justify-content-center align-items-center w-100 h-100">
+          <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        </span>
+      `);
+      let formData = new FormData(this);
+      // Для отладки - выводим данные формы в консоль
+      for (var pair of formData.entries()) {
+          console.log(pair[0] + ': ' + pair[1]);
+      }
+      let eqcontracts = [];
+      formData.append('eqcontracts', JSON.stringify(eqcontracts));
+      $.ajax({
+          url: '/accounts/api/users/',
+          method: 'POST',
+          data: formData,
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          processData: false,
+          contentType: false,
+          dataType: 'json',
+          statusCode: {
+            201: function(result) {
+                console.log(result)
+                  alertSuccess('Пользователь успешно создан')
+                  $('.create-user-success').on('click', () => {
+                    $('#showModalAddUser').modal('hide')
+                    $('#add-user-form')[0].reset();
+                    $('#showModalAddContract').modal('show')
+                  });
+            },
+            406: function(result) {
+                  alertError(result.responseJSON.error)
+            },
+            400: function(result) {
+              let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+              // Если есть JSON с ошибками
+                if (result.responseJSON) {
+                    // Собираем все ошибки в один текст
+                    const errors = [];
+                    for (const field in result.responseJSON) {
+                        errors.push(...result.responseJSON[field]);
+                    }
+                    errorMessage = errors.join('<br>');
+                }
+                // Если нет JSON, но есть текст
+                else if (result.responseText) {
+                    try {
+                        const json = JSON.parse(result.responseText);
+                        errorMessage = json.message || result.responseText;
+                    } catch {
+                        errorMessage = result.responseText;
+                    }
+                }
+
+                // Показываем ошибку пользователю
+                alertError(errorMessage);
+            }
+          },
+
+          error: function(e) {
+            console.log(e)
+            let error = '';
+            if(e.status){
+              error = 'Статус ошибки - ' + e.status;
+            }
+            alertError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+          },
+          complete: function() {
+              // Разблокируем кнопку после завершения запроса
+              submitButton.prop('disabled', false);
+              submitButton.html('Создать'); // Восстанавливаем текст кнопки
+          }
+      });
+    })
+
+    function alertSuccess (text)
+    {
+      Swal.fire({
+          html: '<div class="mt-3">' +
+              '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+              '<div class="mt-4 pt-2 fs-15">' +
+              '<h4>Успех !</h4>' +
+              `<p class="text-muted mx-4 mb-0">${text}</p>` +
+              '</div>' +
+              '</div>',
+          showCancelButton: true,
+          showConfirmButton: false,
+          cancelButtonClass: 'btn btn-primary w-xs mb-1 create-user-success',
+          cancelButtonText: 'Oк',
+          buttonsStyling: false,
+          showCloseButton: true
+      })
+    }
+
+    function alertError(text){
+      Swal.fire({
+          html: '<div class="mt-3">' +
+              '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+              '<div class="mt-4 pt-2 fs-15">' +
+              '<h4>Упс...! Что то пошло не так!</h4>' +
+              `<p class="text-muted mx-4 mb-0">${text}</p>` +
+              '</div>' +
+              '</div>',
+          showCancelButton: true,
+          showConfirmButton: false,
+          cancelButtonClass: 'btn btn-primary w-xs mb-1 create-user-error',
+          cancelButtonText: 'Закрыть',
+          buttonsStyling: false,
+          showCloseButton: true
+      })
+    }
+  })
+</script>

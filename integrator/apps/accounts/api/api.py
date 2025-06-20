@@ -114,10 +114,19 @@ class OrganizationsListAPIView(APIView):
         responses = {(200, 'application/json'): OpenApiResponse(response = OrganizationsSerializer(many = True))}
     )
     def get(self, request, *args, **kwargs):
+        search_term = request.GET.get('term', '').strip()
+        queryset = OrganizationModel.objects.all()
 
-        list = OrganizationModel.objects.all()
-        serializer = OrganizationsSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        if search_term:
+            queryset = queryset.filter(name__icontains=search_term)
+
+        # Формат данных для Select2
+        data = [{
+            'id': org.id,
+            'text': org.name
+        } for org in queryset]
+
+        return Response({'results': data}, status=status.HTTP_200_OK)
 
     @extend_schema(
         request = EditOrganizationSerializer(),
@@ -205,23 +214,84 @@ def GetOrganization(organization_id, relates = False):
 @extend_schema(
     tags = ['Пользователи (Done)'],
 )
+
 class UsersListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-        summary = 'Список пользователей',
-        description = '<ol><li>"id" - Идентификатор пользователя</li><li>"email" - Адрес электронной почты пользователя</li>\
-            <li>"organization_name" - Наименование организации пользователя</li><li>"phone" - Телефон пользователя</li><li>"img" - Адрес картинки роли</li>\
-            <li>"groups" - Список наименований групп</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = UsersSerializer(many = True))}
+        summary='Список пользователей',
+        description='<ol><li>"id" - Идентификатор пользователя</li>'
+                    '<li>"email" - Адрес электронной почты пользователя</li>'
+                    '<li>"organization_name" - Наименование организации пользователя</li>'
+                    '<li>"phone" - Телефон пользователя</li>'
+                    '<li>"last_login" - Дата последнего входа</li>'
+                    '<li>"date_joined" - Дата регистрации</li>'
+                    '<li>"groups" - Список наименований групп</li></ol>',
+        responses={(200, 'application/json'): OpenApiResponse(response=UsersSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
-        list = User.objects.filter(~Q(email = 'serindework@mail.ru')).annotate(
-            organization_name = F('organization__name')
-        )
+        # Параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '')
 
-        serializer = UsersSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        # Базовый запрос
+        queryset = User.objects.filter(~Q(email='serindework@mail.ru')) \
+            .select_related('organization') \
+            .prefetch_related('groups') \
+            .annotate(organization_name=F('organization__name'))
+
+        # Поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(email__icontains=search_value) |
+                Q(organization__name__icontains=search_value) |
+                Q(phone__icontains=search_value) |
+                Q(groups__name__icontains=search_value) |
+                Q(last_login__icontains=search_value) |  # Добавлен поиск по last_login
+                Q(date_joined__icontains=search_value)   # Добавлен поиск по date_joined
+            ).distinct()
+
+        # Общее количество записей (до пагинации)
+        total_records = queryset.count()
+
+        # Сортировка
+        order_column = int(request.GET.get('order[0][column]', 0))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+
+        # Добавлены новые колонки для сортировки
+        columns = ['id', 'email', 'organization_name', 'phone', 'last_login', 'date_joined', 'groups']
+        order_field = columns[order_column]
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+
+        queryset = queryset.order_by(order_field)
+
+        # Пагинация
+        queryset = queryset[start:start + length]
+
+        # Подготовка данных
+        data = []
+        for user in queryset:
+            data.append({
+                'id': user.id,
+                'email': user.email,
+                'organization_name': user.organization_name or '',
+                'phone': user.phone or '',
+                'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else '',
+                'date_joined': user.date_joined.strftime('%Y-%m-%d %H:%M:%S'),
+                'groups': ', '.join([g.name for g in user.groups.all()])
+            })
+
+        response = {
+            'draw': draw,
+            'recordsTotal': total_records,
+            'recordsFiltered': total_records,
+            'data': data
+        }
+
+        return Response(response, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary = 'Добавление пользователя',
@@ -234,17 +304,67 @@ class UsersListAPIView(APIView):
     )
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
-        if 'password' not in request.data.keys():
-            if data['password1'] != data['password2']:
-                return Response({'error': 'Пароли не совпадают'}, status = status.HTTP_406_NOT_ACCEPTABLE)
 
+        # Проверка паролей
+        if 'password' not in data:
+            if data['password1'] != data['password2']:
+                return Response({'error': 'Пароли не совпадают'}, status=status.HTTP_406_NOT_ACCEPTABLE)
             data['password'] = data['password1']
 
-        serializer = AddUserSerializer(data = data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status = status.HTTP_201_CREATED)
-        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+        group_id = data.pop('add_group', None)
+
+        # Создаем пользователя
+        serializer = AddUserSerializer(data=data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.save()
+
+        # Если указана группа - добавляем ее
+        if group_id is not None:
+            try:
+                # Преобразуем group_id в список ID (даже если пришло одно значение)
+                group_ids = [int(group_id)] if not isinstance(group_id, list) else [int(g) for g in group_id]
+
+                # Создаем данные для обновления
+                edit_data = {'groups': group_ids}
+
+                # Используем сериализатор для обновления групп
+                edit_serializer = EditUserSerializer(
+                    instance=user,
+                    data=edit_data,
+                    partial=True
+                )
+
+                if edit_serializer.is_valid():
+                    edit_serializer.save()
+                else:
+                    user.delete()
+                    return Response(
+                        edit_serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            except (ValueError, TypeError) as e:
+                user.delete()
+                return Response(
+                    {'error': 'Неверный формат ID группы'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Group.DoesNotExist:
+                user.delete()
+                return Response(
+                    {'error': 'Указанная группа не существует'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as e:
+                user.delete()
+                return Response(
+                    {'error': f'Ошибка при добавлении группы: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 @extend_schema(
     tags = ['Пользователи (Done)'],

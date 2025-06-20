@@ -1,0 +1,179 @@
+{% load static %}
+<div class="tab-pane active" id="personalDetails" role="tabpanel">
+    <form action="" id="form-user-put">
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="firstnameInput" class="form-label">Имя</label>
+                    <input type="text" name="{{ form.first_name.name }}" class="form-control" id="firstnameInput" placeholder="Enter your firstname" value="{{ form.first_name.value }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="lastnameInput" class="form-label">Фамилия</label>
+                    <input type="text" name="{{ form.last_name.name }}" class="form-control" id="lastnameInput" placeholder="Enter your lastname" value="{{ form.last_name.value }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="phonenumberInput" class="form-label">Телефон</label>
+                    <input type="text" name="{{ form.phone.name }}"class="form-control" id="phonenumberInput" placeholder="Enter your phone number" value="{{ form.phone.value }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="emailInput" class="form-label">Email Address</label>
+                    <input type="email" name="{{ form.email.name }}" class="form-control" id="emailInput" placeholder="Enter your email" value="{{ form.email.value }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="JoiningdatInput" class="form-label">Дата регистрации</label>
+                    <input type="text" name="{{ form.date_joined.name }}" class="form-control" value="{{ form.date_joined.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="JoiningdatInput" data-date-format="d.m.Y" data-default-date="{{ form.date_joined.value|date:'d.m.Y' }}" placeholder="Выберите дату"  />
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-6">
+                <div class="mb-3">
+                    <label for="JoiningdatInput" class="form-label">Последний вход в систеему</label>
+                    <input type="text" name="{{ form.last_login.name }}" class="form-control" value="{{ form.last_login.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="JoiningdatInput" data-date-format="d.m.Y" data-default-date="{{ form.last_login.value|date:'d.m.Y' }}" placeholder="Выберите дату"  />
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-12">
+                <div class="mb-3">
+                    {{ form.organization.label_tag }}
+                    {{ form.organization }}
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-4">
+                <div class="mb-3">
+                    <label for="cityInput" class="form-label">ИНН</label>
+                    <input type="email" name="{{ form.inn.name }}" class="form-control" id="emailInput" placeholder="Введите ИНН" value="{{ form.inn.value|default:'' }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-4">
+                <div class="mb-3">
+                    <label for="countryInput" class="form-label">Адресс</label>
+                    <input type="email" name="{{ form.address.name }}" class="form-control" id="emailInput" placeholder="Введите адрес" value="{{ form.address.value|default:'' }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-4">
+                <div class="mb-3">
+                    <label for="zipcodeInput" class="form-label">Идентификатор в телеграме</label>
+                    <input type="email" name="{{ form.telegram.name }}" class="form-control" id="emailInput" placeholder="Введите id телеграм" value="{{ form.telegram.value|default:'' }}">
+                </div>
+            </div>
+            <!--end col-->
+            <div class="col-lg-12">
+                <div class="hstack gap-2 justify-content-end">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <a href="{% url link %}" class="btn btn-soft-success">Отмена</a>
+                </div>
+            </div>
+            <!--end col-->
+        </div>
+        <!--end row-->
+    </form>
+</div>
+<!--end tab-pane-->
+<script type="text/javascript">
+    $(document).ready(function () {
+      $('#id_client').select2({
+          ajax: {
+              // Правильное чтение data-ajax--url
+              url: $('#id_client').attr('data-ajax--url'),
+
+              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+              data: function(params) {
+                  return {
+                      term: params.term,
+                      _type: 'query',
+                      field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                  };
+              },
+
+              // Дополнительные параметры из data-атрибутов
+              cache: $('#id_client').attr('data-ajax--cache') === 'true',
+              dataType: 'json',
+              delay: 250,
+              processResults: function(data) {
+                console.log(data)
+                  return { results: data.results };
+              }
+          },
+
+          // Другие настройки из data-атрибутов
+          minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
+          theme: $('#id_client').attr('data-theme'),
+          allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+          language: {
+               noResults: function() {
+              return `<button  type="button"
+              class="btn btn-primary"
+              onClick='task()'>+ Добавить</button>
+              </li>`;
+              }
+           },
+
+          escapeMarkup: function (markup) {
+              return markup;
+          }
+    });
+    $('#id_end_users').select2({
+      multiple: true,
+      tags: true,
+      tokenSeparators: [','],
+      width: '100%',
+        ajax: {
+            // Правильное чтение data-ajax--url
+            url: $('#id_end_users').attr('data-ajax--url'),
+
+            // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+            data: function(params) {
+                return {
+                    term: params.term,
+                    _type: 'query',
+                    field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                };
+            },
+
+            // Дополнительные параметры из data-атрибутов
+            cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+            dataType: 'json',
+            delay: 250,
+            processResults: function(data) {
+              console.log(data)
+                return { results: data.results };
+            }
+        },
+
+        // Другие настройки из data-атрибутов
+        minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
+        theme: $('#id_end_users').attr('data-theme'),
+        allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+        language: {
+             noResults: function() {
+            return `<button  type="button"
+            class="btn btn-primary"
+            onClick='task()'>+ Добавить</button>
+            </li>`;
+            }
+         },
+
+        escapeMarkup: function (markup) {
+            return markup;
+        }
+      });
+
+
+
+    });
+</script>

@@ -209,7 +209,9 @@ class ContractsListAPIView(APIView):
         request = ContractDetailsSerializer(),
         responses = {(201, 'application/json'): OpenApiResponse(response = ContractDetailsSerializer())}
     )
+
     def post(self, request, *args, **kwargs):
+        print(request.data)# Для отладки
         serializer = ContractDetailsSerializer(data = request.data)
 
         if serializer.is_valid():
@@ -340,7 +342,7 @@ class EqContractsEditAPIView(APIView):
 
         # Создаем копию данных запроса
         data = request.data.copy()
-        
+
         # Добавляем contract в данные, а не contract_id
         data['contract'] = contract.id  # Здесь используется ID договора
 
@@ -364,6 +366,46 @@ class EqContractsEditAPIView(APIView):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    @extend_schema(
+        summary='Удалить оборудование из договора',
+        description='Удаляет оборудование с указанным ID из договора',
+        parameters=[
+            OpenApiParameter(name='contract_id', description='ID договора', type=int, location=OpenApiParameter.PATH),
+            OpenApiParameter(name='equipment_id', description='ID оборудования', type=int, location=OpenApiParameter.PATH),
+        ],
+        responses={
+            204: OpenApiResponse(description='Оборудование успешно удалено'),
+            404: OpenApiResponse(description='Договор или оборудование не найдены'),
+            403: OpenApiResponse(description='Нет прав для удаления')
+        }
+    )
+    def delete(self, request, contract_id, equipment_id, *args, **kwargs):
+        try:
+            # Проверяем существование договора
+            contract = ContractModel.objects.get(pk=contract_id)
+
+            # Получаем оборудование, связанное с этим договором
+            equipment = contract.eqcontracts.get(pk=equipment_id)
+
+            # Удаляем оборудование
+            equipment.delete()
+
+            return Response(
+                {'message': 'Оборудование успешно удалено из договора'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+        except ContractModel.DoesNotExist:
+            return Response(
+                {'error': 'Договор не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ContractEquipmentModel.DoesNotExist:
+            return Response(
+                {'error': 'Оборудование не найдено в указанном договоре'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class ContractsEditAPIView(APIView):
     permission_classes = [IsAdminUser, ]

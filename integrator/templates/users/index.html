@@ -1,7 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Список контрактов{% endblock title %}
-{% block page-title %}{{ label }}{% endblock page-title %}
+{% block title %}Пользователи{% endblock title %}
 {% block pagecss %}
     <!--datatable css-->
     <link rel="stylesheet" href="/static/assets/css/dataTables.bootstrap5.min.css" />
@@ -17,40 +16,44 @@
     <link rel="stylesheet" href="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.css">
 
 {% endblock %}
-
-{% block page-subtitle %}Список контрактов{% endblock page-subtitle %}
-{% block menu-title %}Контракты{% endblock menu-title %}
+{% block page-title %}Пользователи{% endblock page-title %}
+{% block page-subtitle %}все{% endblock page-subtitle %}
+{% block menu-title %}Пользователи{% endblock menu-title %}
 {% block content %}
 <div class="row">
   <div class="col-lg-12">
       <div class="card" id="ticketsList">
           <div class="card-header border-0">
               <div class="d-flex align-items-center">
-                  <h5 class="card-title mb-0 flex-grow-1">Контракты</h5>
+                  <h5 class="card-title mb-0 flex-grow-1">Пользователи</h5>
                   <div class="flex-shrink-0">
                       <div class="d-flex flex-wrap gap-2">
-                          <button class="btn btn-danger add-btn" data-bs-toggle="modal" disabled data-bs-target="#showModalAddContract"><i class="ri-add-line align-bottom me-1" ></i> Создать контракт</button>
+                          <button class="btn btn-danger add-btn" data-bs-toggle="modal" data-bs-target="#showModalAddUser"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>
                       </div>
                   </div>
               </div>
           </div>
+
           <div class="card-body">
-                  <table class="table table-bordered dt-responsive table-striped align-middle dataTable no-footer dtr-inline" style="width: 100%;" id="contractTable">
+                  <table class="table table-bordered dt-responsive table-striped align-middle dataTable no-footer dtr-inline" style="width: 100%;" id="usersTable">
                       <thead>
                           <tr>
                               <th>Идентификатор</th>
-                              <th>Номер договора</th>
-                              <th>Поставщик</th>
-                              <th >Начало договора</th>
-                              <th>Окончание договора</th>
-
+                              <th>Адрес электронной почты</th>
+                              <th>Организация</th>
+                              <th>Телефон</th>
+                              <th>Последний вход</th>
+                              <th>Создан</th>
+                              <th>Группа</th>
                           </tr>
                       </thead>
-                      <tbody class="list form-check-all" id="contracts-list-data">
+                      <tbody class="list form-check-all" id="users-list-data">
 
                       </tbody>
-                      <tbody class="list form-check-all" id="contracts-list-data-preloader">
+                      <tbody class="list form-check-all" id="users-list-data-preloader">
                         <tr>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
@@ -67,7 +70,6 @@
   <!--end col-->
 </div>
 <!--end row-->
-{% include "contracts/modal_create.html" %}
 {% include "accounts/modal_create_user.html" %}
 {% include "organizations/modal_create_org.html" %}
 {% endblock content %}
@@ -95,61 +97,81 @@
     <script src="/static/assets/libs/filepond-plugin-file-encode/filepond-plugin-file-encode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
     <script type="text/javascript">
-      let contractTable;
+      let usersTable;
       function initializeTables(){
-        ticketTable = $('#contractTable').DataTable({
-           processing: true,
-           serverSide: true,
-           searching: true,
-           ajax: {
-               url: '/contracts/api/contracts/',  // Путь к вашему API
-               type: 'GET',
-               data: function(d) {
-                   // Добавление данных для поиска
-               },
-           },
-
-           columns: [
-           { data: 'id' },
-
-           {
-             data: 'number' ,
-             render: function(data, type, row) {
-                 // Создание ссылки на страницу деталей заявки с использованием id
-                 return `<a href="/contracts/edit_contract/${row.id}" class="fw-medium link-primary contract-id">${row.number}</a>`;
-             }
-           },
-           { data: 'organization_name' ,
-             render: function(data, type, row) {
-                 // Создание ссылки на страницу деталей заявки с использованием id
-                 return `<a href="/contracts/edit_contract/${row.id}" class="fw-medium link-primary contract-id">${row.organization_name}</a>`;
-             }
-           },
-           { data: 'signed' },
-           { data: 'enddate' }
-           ],
-           columnDefs: [
-             {
-               targets: 0, // Первая колонка
-               width: "5%",
-               className: 'dt-center' // Встроенный класс DataTables
-             }
-           ],
-           paging: true,
-           lengthMenu: [[10, 15, 20, 25, 50], [10, 15, 20, 25, 50]],
-           order: [[0, 'default']],
-           language: {
-               url: '/static/assets/js/table-ru.json'
-           },
-           stateSave: true, // Сохранение состояния таблицы
-           // Убедитесь, что данные возвращаются в правильном формате
-           deferRender: true, // Ускоряет при большом количестве данных
-           drawCallback: function(settings) {
-             $('.add-btn').attr('disabled', false)
-             $('#contracts-list-data').show()
-             $('#contracts-list-data-preloader').remove()
-           }
-       });
+        usersTable = $('#usersTable').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: '/accounts/api/users/',
+                type: 'GET',
+                data: function(d) {
+                    // Дополнительные параметры можно добавить здесь
+                },
+                dataSrc: function(json) {
+                    // Убедимся, что данные получены в правильном формате
+                    if (json && json.data) {
+                        return json.data;
+                    }
+                    return [];
+                }
+            },
+            columns: [
+                { data: 'id' },
+                {
+                  data: 'email' ,
+                  render: function(data, type, row) {
+                      // Создание ссылки на страницу деталей заявки с использованием id
+                      return `<a href="/accounts/users/edit/${row.id}" class="fw-medium link-primary contract-id">${data}</a>`;
+                  }
+                },
+                { data: 'organization_name' },
+                { data: 'phone' },
+                {
+                    data: 'last_login',
+                    render: function(data, type, row) {
+                        if (type === 'display') {
+                            return data || 'Никогда';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: 'date_joined',
+                    render: function(data, type, row) {
+                        if (type === 'display') {
+                            return data || '-';
+                        }
+                        return data;
+                    }
+                },
+                { data: 'groups' }
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    width: "3%",
+                    className: 'dt-center'
+                },
+                {
+                    targets: [1, 2, 3, 4],
+                    className: 'dt-left'
+                }
+            ],
+            paging: true,
+            lengthMenu: [[10, 15, 20, 25, 50], [10, 15, 20, 25, 50]],
+            order: [[0, 'asc']],
+            language: {
+                url: '/static/assets/js/table-ru.json'
+            },
+            stateSave: true,
+            deferRender: true,
+            drawCallback: function(settings) {
+                $('.add-btn').attr('disabled', false);
+                $('#users-list-data').show();
+                $('#users-list-data-preloader').remove();
+            }
+        });
       }
       document.addEventListener('DOMContentLoaded', function () {
 
@@ -158,5 +180,4 @@
         });
 
     </script>
-
-{% endblock %}
+    {% endblock %}

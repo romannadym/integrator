@@ -26,6 +26,19 @@
 
 <script type="text/javascript">
   $(document).ready(function () {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            document.cookie.split(';').forEach(cookie => {
+                cookie = cookie.trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                }
+            });
+        }
+        return cookieValue;
+    }
+
     var path = window.location.pathname;
     var contractId = path.split('/').pop();
     let contractEquipmentsTable = $('#contractEquipmentsTable').DataTable({
@@ -63,7 +76,7 @@
                              </button>
                              <ul class="dropdown-menu dropdown-menu-end" style="">
                                  <li>
-                                     <a class="dropdown-item remove-item-btn" data-delete-id="${data}" data-bs-toggle="modal" href="#deleteEquipment">
+                                     <a class="dropdown-item remove-item-btn" data-delete-id="${row.id}" href="#">
                                          <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
                                      </a>
                                  </li>
@@ -99,5 +112,70 @@
          });
        }
      })
+
+     $(document).on('click', '.remove-item-btn', function() {
+       let equipment_id = $(this).data('deleteId')
+       $.ajax({
+           url: `/contracts/api/eqcontract/${contractId}/${equipment_id}/`,
+           method: 'DELETE',
+           headers: { 'X-CSRFToken': getCookie('csrftoken') },
+           processData: false,
+           contentType: false,
+           dataType: 'json',
+           statusCode: {
+               204: function(data) {
+                   alertDeleteSuccess(`Оборудование удалено`);
+                   $('.delete-equipment-success').on('click', () => contractEquipmentsTable.ajax.reload(null, false));
+               },
+               404: function() {
+                   alertDeleteError("Адрес запроса не существует!");
+               },
+               403: function(data) {
+                   alertDeleteError(data.message);
+               },
+               500: function() {
+                   alertDeleteError("Ошибка сервера 500!");
+               }
+           },
+           complete: function () {
+           }
+       });
+     })
+
+     function alertDeleteSuccess (text)
+     {
+       Swal.fire({
+           html: '<div class="mt-3">' +
+               '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+               '<div class="mt-4 pt-2 fs-15">' +
+               '<h4>Успех !</h4>' +
+               `<p class="text-muted mx-4 mb-0">${text}</p>` +
+               '</div>' +
+               '</div>',
+           showCancelButton: true,
+           showConfirmButton: false,
+           cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-equipment-success',
+           cancelButtonText: 'Oк',
+           buttonsStyling: false,
+           showCloseButton: true
+       })
+     }
+     function alertDeleteError(text){
+       Swal.fire({
+           html: '<div class="mt-3">' +
+               '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+               '<div class="mt-4 pt-2 fs-15">' +
+               '<h4>Упс...! Что то пошло не так!</h4>' +
+               `<p class="text-muted mx-4 mb-0">${text}</p>` +
+               '</div>' +
+               '</div>',
+           showCancelButton: true,
+           showConfirmButton: false,
+           cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-equipment-error',
+           cancelButtonText: 'Закрыть',
+           buttonsStyling: false,
+           showCloseButton: true
+       })
+     }
   })
 </script>

@@ -101,89 +101,89 @@
 <script src="/static/assets/libs/prismjs/prism.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
   <script type="text/javascript">
-      $(document).ready(function () {
-        $('#id_client').select2({
-            ajax: {
-                // Правильное чтение data-ajax--url
-                url: $('#id_client').attr('data-ajax--url'),
+    $(document).ready(function () {
+       $('#id_client').select2({
+           ajax: {
+               // Правильное чтение data-ajax--url
+               url: $('#id_client').attr('data-ajax--url'),
 
-                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
-                data: function(params) {
-                    return {
-                        term: params.term,
-                        _type: 'query',
-                        field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
-                    };
-                },
+               // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+               data: function(params) {
+                   return {
+                       term: params.term,
+                       _type: 'query',
+                       field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                   };
+               },
 
-                // Дополнительные параметры из data-атрибутов
-                cache: $('#id_client').attr('data-ajax--cache') === 'true',
-                dataType: 'json',
-                delay: 250,
-                processResults: function(data) {
-                  console.log(data)
-                    return { results: data.results };
-                }
-            },
-
-            // Другие настройки из data-атрибутов
-            minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
-            theme: $('#id_client').attr('data-theme'),
-            allowClear: $('#id_client').attr('data-allow-clear') === 'true',
-            language: {
-                 noResults: function() {
-                return `<button  type="button"
-                class="btn btn-primary"
-                onClick='task()'>+ Добавить</button>
-                </li>`;
-                }
-             },
-
-            escapeMarkup: function (markup) {
-                return markup;
-            }
-      });
-      $('#id_end_users').select2({
-          ajax: {
-              // Правильное чтение data-ajax--url
-              url: $('#id_end_users').attr('data-ajax--url'),
-
-              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
-              data: function(params) {
-                  return {
-                      term: params.term,
-                      _type: 'query',
-                      field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
-                  };
-              },
-
-              // Дополнительные параметры из data-атрибутов
-              cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
-              dataType: 'json',
-              delay: 250,
-              processResults: function(data) {
-                console.log(data)
-                  return { results: data.results };
-              }
-          },
-
-          // Другие настройки из data-атрибутов
-          minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
-          theme: $('#id_end_users').attr('data-theme'),
-          allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
-          language: {
-               noResults: function() {
-              return `<button  type="button"
-              class="btn btn-primary"
-              onClick='task()'>+ Добавить</button>
-              </li>`;
-              }
+               // Дополнительные параметры из data-атрибутов
+               cache: $('#id_client').attr('data-ajax--cache') === 'true',
+               dataType: 'json',
+               delay: 250,
+               processResults: function(data) {
+                 console.log(data)
+                   return { results: data.results };
+               }
            },
 
-          escapeMarkup: function (markup) {
-              return markup;
-          }
-        });
-      });
+           // Другие настройки из data-атрибутов
+           minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
+           theme: $('#id_client').attr('data-theme'),
+           allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+           language: {
+                noResults: function() {
+               return `<button  type="button"
+               class="btn btn-primary"
+               onClick='task()'>+ Добавить</button>
+               </li>`;
+               }
+            },
+
+           escapeMarkup: function (markup) {
+               return markup;
+           }
+     });
+     $('#id_end_users').select2({
+         ajax: {
+             // Правильное чтение data-ajax--url
+             url: $('#id_end_users').attr('data-ajax--url'),
+
+             // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+             data: function(params) {
+                 return {
+                     term: params.term,
+                     _type: 'query',
+                     field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                 };
+             },
+
+             // Дополнительные параметры из data-атрибутов
+             cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+             dataType: 'json',
+             delay: 250,
+             processResults: function(data) {
+               console.log(data)
+                 return { results: data.results };
+             }
+         },
+
+         // Другие настройки из data-атрибутов
+         minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
+         theme: $('#id_end_users').attr('data-theme'),
+         allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+         language: {
+              noResults: function() {
+             return `<button  type="button"
+             class="btn btn-primary"
+             onClick='task()'>+ Добавить</button>
+             </li>`;
+             }
+          },
+
+         escapeMarkup: function (markup) {
+             return markup;
+         }
+       });
+     });
   </script>
   {% endblock %}

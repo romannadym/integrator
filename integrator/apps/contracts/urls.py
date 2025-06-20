@@ -23,4 +23,5 @@ urlpatterns = [
     path('api/contracts/<int:contract_id>', ContractsEditAPIView.as_view(), name = 'edit-contracts-api'),
     path('api/contracts/delete/', ContractsDeleteAPIView.as_view(), name = 'contracts-delete-api'),
     path('api/eqcontract/<int:contract_id>', EqContractsEditAPIView.as_view(), name = 'edit-eqcontracts-api'),
+    path('api/eqcontract/<int:contract_id>/<int:equipment_id>/', EqContractsEditAPIView.as_view(), name = 'delete-eqcontracts-api'),
 ]

@@ -24,7 +24,7 @@ class EditUserForm(UserChangeForm):
     groups = forms.ModelMultipleChoiceField(label = 'Группы', queryset = Group.objects.all(), help_text = 'Группы, к которым принадлежит данный пользователь. Пользователь получит все права, указанные в каждой из его/её групп.', required = True)
     class Meta:
         model = User
-        exclude = ['last_login', 'date_joined', 'password', 'user_permissions']
+        exclude = ['password', 'user_permissions']
         widgets = {'organization': OrganizationWidget(attrs = {'data-minimum-input-length': 0})}
 
     def __init__(self, *args, **kwargs):

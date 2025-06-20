@@ -130,9 +130,17 @@ class AddUserSerializer(serializers.ModelSerializer):
         return user
 
 class EditUserSerializer(serializers.ModelSerializer):
+    groups = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Group.objects.all(),
+        required=False
+    )
+
     class Meta:
         model = User
-        fields = ['email', 'organization', 'first_name', 'last_name', 'is_superuser', 'is_staff', 'is_active', 'inn', 'address', 'phone', 'telegram', 'groups']
+        fields = ['email', 'organization', 'first_name', 'last_name',
+                'is_superuser', 'is_staff', 'is_active', 'inn',
+                'address', 'phone', 'telegram', 'groups']
         extra_kwargs = {
             'is_superuser': {'default': False},
             'is_staff': {'default': False},
@@ -142,25 +150,29 @@ class EditUserSerializer(serializers.ModelSerializer):
         }
 
     def update(self, instance, validated_data):
-        fields = ['email', 'organization', 'first_name', 'last_name', 'is_superuser', 'is_staff', 'is_active', 'inn', 'address', 'phone', 'telegram']
+        # Обновляем основные поля
+        fields = ['email', 'organization', 'first_name', 'last_name',
+                 'is_superuser', 'is_staff', 'is_active', 'inn',
+                 'address', 'phone', 'telegram']
         for field in fields:
-            setattr(instance, field, validated_data.get(field))
+            if field in validated_data:
+                setattr(instance, field, validated_data.get(field))
 
         instance.save()
 
-        groups = validated_data.pop('groups')
-        if groups:
-            user_groups = instance.groups.values_list('id', flat = True)
-            groups_create = []
-            groups_delete = []
+        # Обновляем группы, если они есть в данных
+        if 'groups' in validated_data:
+            groups = validated_data['groups']
+            current_groups = set(instance.groups.values_list('id', flat=True))
+            new_groups = set(g.id for g in groups)
 
-            for group in user_groups:
-                if group not in groups:
-                    instance.groups.remove(group)
+            # Удаляем группы, которых нет в новом списке
+            for group_id in current_groups - new_groups:
+                instance.groups.remove(group_id)
 
-            for group in groups:
-                if group not in user_groups:
-                    instance.groups.add(group)
+            # Добавляем новые группы
+            for group_id in new_groups - current_groups:
+                instance.groups.add(group_id)
 
         return instance
 
