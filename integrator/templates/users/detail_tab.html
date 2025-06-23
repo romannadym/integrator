@@ -5,42 +5,42 @@
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="firstnameInput" class="form-label">Имя</label>
-                    <input type="text" name="{{ form.first_name.name }}" class="form-control" id="firstnameInput" placeholder="Enter your firstname" value="{{ form.first_name.value }}">
+                    <input type="text" name="{{ form.first_name.name }}" class="form-control" id="firstnameInput" placeholder="Enter your firstname" value="{{ form.first_name.value }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="lastnameInput" class="form-label">Фамилия</label>
-                    <input type="text" name="{{ form.last_name.name }}" class="form-control" id="lastnameInput" placeholder="Enter your lastname" value="{{ form.last_name.value }}">
+                    <input type="text" name="{{ form.last_name.name }}" class="form-control" id="lastnameInput" placeholder="Enter your lastname" value="{{ form.last_name.value }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="phonenumberInput" class="form-label">Телефон</label>
-                    <input type="text" name="{{ form.phone.name }}"class="form-control" id="phonenumberInput" placeholder="Enter your phone number" value="{{ form.phone.value }}">
+                    <input type="text" name="{{ form.phone.name }}"class="form-control" id="phonenumberInput" placeholder="Enter your phone number" value="{{ form.phone.value }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="emailInput" class="form-label">Email Address</label>
-                    <input type="email" name="{{ form.email.name }}" class="form-control" id="emailInput" placeholder="Enter your email" value="{{ form.email.value }}">
+                    <input type="email" name="{{ form.email.name }}" class="form-control" id="emailInput" placeholder="Enter your email" value="{{ form.email.value }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="JoiningdatInput" class="form-label">Дата регистрации</label>
-                    <input type="text" name="{{ form.date_joined.name }}" class="form-control" value="{{ form.date_joined.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="JoiningdatInput" data-date-format="d.m.Y" data-default-date="{{ form.date_joined.value|date:'d.m.Y' }}" placeholder="Выберите дату"  />
+                    <input type="text" name="{{ form.date_joined.name }}" class="form-control" value="{{ form.date_joined.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="{{ form.date_joined.name }}" data-date-format="d.m.Y" data-default-date="{{ form.date_joined.value|date:'d.m.Y' }}" placeholder="Выберите дату" {% if not permissions.is_admin %}disabled{% endif %} />
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-6">
                 <div class="mb-3">
                     <label for="JoiningdatInput" class="form-label">Последний вход в систеему</label>
-                    <input type="text" name="{{ form.last_login.name }}" class="form-control" value="{{ form.last_login.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="JoiningdatInput" data-date-format="d.m.Y" data-default-date="{{ form.last_login.value|date:'d.m.Y' }}" placeholder="Выберите дату"  />
+                    <input type="text" name="{{ form.last_login.name }}" class="form-control" value="{{ form.last_login.value|date:'d.m.Y' }}" disabled data-locale="ru" data-provider="flatpickr" id="{{ form.last_login.name }}" data-date-format="d.m.Y" data-default-date="{{ form.last_login.value|date:'d.m.Y' }}" placeholder="Выберите дату" {% if not permissions.is_admin %}disabled{% endif %} />
                 </div>
             </div>
             <!--end col-->
@@ -54,31 +54,33 @@
             <div class="col-lg-4">
                 <div class="mb-3">
                     <label for="cityInput" class="form-label">ИНН</label>
-                    <input type="email" name="{{ form.inn.name }}" class="form-control" id="emailInput" placeholder="Введите ИНН" value="{{ form.inn.value|default:'' }}">
+                    <input type="text" name="{{ form.inn.name }}" class="form-control" id="{{ form.inn.name }}" placeholder="Введите ИНН" value="{{ form.inn.value|default:'' }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-4">
                 <div class="mb-3">
                     <label for="countryInput" class="form-label">Адресс</label>
-                    <input type="email" name="{{ form.address.name }}" class="form-control" id="emailInput" placeholder="Введите адрес" value="{{ form.address.value|default:'' }}">
+                    <input type="text" name="{{ form.address.name }}" class="form-control" id="{{ form.address.name }}" placeholder="Введите адрес" value="{{ form.address.value|default:'' }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
             <div class="col-lg-4">
                 <div class="mb-3">
                     <label for="zipcodeInput" class="form-label">Идентификатор в телеграме</label>
-                    <input type="email" name="{{ form.telegram.name }}" class="form-control" id="emailInput" placeholder="Введите id телеграм" value="{{ form.telegram.value|default:'' }}">
+                    <input type="text" name="{{ form.telegram.name }}" class="form-control" id="{{ form.telegram.name }}" placeholder="Введите id телеграм" value="{{ form.telegram.value|default:'' }}" {% if not permissions.is_admin %}disabled{% endif %}>
                 </div>
             </div>
             <!--end col-->
+            {% if permissions.is_admin %}
             <div class="col-lg-12">
                 <div class="hstack gap-2 justify-content-end">
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="submit" class="btn btn-primary" id="updateContract">Сохранить</button>
                     <a href="{% url link %}" class="btn btn-soft-success">Отмена</a>
                 </div>
             </div>
             <!--end col-->
+            {% endif %}
         </div>
         <!--end row-->
     </form>
@@ -86,94 +88,207 @@
 <!--end tab-pane-->
 <script type="text/javascript">
     $(document).ready(function () {
-      $('#id_client').select2({
-          ajax: {
-              // Правильное чтение data-ajax--url
-              url: $('#id_client').attr('data-ajax--url'),
-
-              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
-              data: function(params) {
-                  return {
-                      term: params.term,
-                      _type: 'query',
-                      field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
-                  };
-              },
-
-              // Дополнительные параметры из data-атрибутов
-              cache: $('#id_client').attr('data-ajax--cache') === 'true',
-              dataType: 'json',
-              delay: 250,
-              processResults: function(data) {
-                console.log(data)
-                  return { results: data.results };
-              }
-          },
-
-          // Другие настройки из data-атрибутов
-          minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
-          theme: $('#id_client').attr('data-theme'),
-          allowClear: $('#id_client').attr('data-allow-clear') === 'true',
-          language: {
-               noResults: function() {
-              return `<button  type="button"
-              class="btn btn-primary"
-              onClick='task()'>+ Добавить</button>
-              </li>`;
-              }
-           },
-
-          escapeMarkup: function (markup) {
-              return markup;
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              document.cookie.split(';').forEach(cookie => {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                  }
+              });
           }
-    });
-    $('#id_end_users').select2({
-      multiple: true,
-      tags: true,
-      tokenSeparators: [','],
-      width: '100%',
-        ajax: {
-            // Правильное чтение data-ajax--url
-            url: $('#id_end_users').attr('data-ajax--url'),
+          return cookieValue;
+      }
 
-            // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
-            data: function(params) {
-                return {
-                    term: params.term,
-                    _type: 'query',
-                    field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
-                };
+      var path = window.location.pathname;
+      var userId = path.split('/').pop();
+
+        $('#id_organization').select2({
+            ajax: {
+                // Правильное чтение data-ajax--url
+                url: $('#id_organization').attr('data-ajax--url'),
+
+                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+                data: function(params) {
+                    return {
+                        term: params.term,
+                        _type: 'query',
+                        field_id: $('#id_organization').attr('data-field_id')  // или .data('field_id')
+                    };
+                },
+
+                // Дополнительные параметры из data-атрибутов
+                cache: $('#id_organization').attr('data-ajax--cache') === 'true',
+                dataType: 'json',
+                delay: 250,
+                processResults: function(data) {
+                  console.log(data)
+                    return { results: data.results };
+                }
             },
 
-            // Дополнительные параметры из data-атрибутов
-            cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
-            dataType: 'json',
-            delay: 250,
-            processResults: function(data) {
-              console.log(data)
-                return { results: data.results };
-            }
-        },
+            // Другие настройки из data-атрибутов
+            minimumInputLength: parseInt($('#id_organization').attr('data-minimum-input-length')),
+            theme: $('#id_organization').attr('data-theme'),
+            allowClear: $('#id_organization').attr('data-allow-clear') === 'true',
+            language: {
+                 noResults: function() {
+                return `<button  type="button"
+                class="btn btn-primary"
+                onClick='task()'>+ Добавить</button>
+                </li>`;
+                }
+             },
 
-        // Другие настройки из data-атрибутов
-        minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
-        theme: $('#id_end_users').attr('data-theme'),
-        allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
-        language: {
-             noResults: function() {
-            return `<button  type="button"
-            class="btn btn-primary"
-            onClick='task()'>+ Добавить</button>
-            </li>`;
+            escapeMarkup: function (markup) {
+                return markup;
             }
-         },
+      }){% if not permissions.is_admin %}.prop('disabled', true).trigger('change.select2');{% endif %}
 
-        escapeMarkup: function (markup) {
-            return markup;
+      //сохранение данных
+      $('#form-user-put').on('submit', function(evn) {
+          evn.preventDefault();
+          let submitButton = $('#updateContract'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+          submitButton.prop('disabled', true);
+          // Сохраняем текст, если надо восстановить потом
+          let originalText = submitButton.html();
+
+          // Блокируем и добавляем фиксированные размеры
+          let buttonWidth = submitButton.outerWidth();
+          let buttonHeight = submitButton.outerHeight();
+
+          submitButton.prop('disabled', true).css({
+            width: buttonWidth,
+            height: buttonHeight
+          }).html(`
+            <span class="d-flex justify-content-center align-items-center w-100 h-100">
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            </span>
+          `);
+          let formData = new FormData(this);
+          // Конвертируем FormData в объект для JSON (если нужно)
+          let jsonData = {};
+          formData.forEach((value, key) => {
+              jsonData[key] = value;
+          });
+                // Добавляем значения чекбоксов, которые вне формы
+          jsonData.is_superuser = $('#is_superuser').is(':checked'); // true/false
+          jsonData.is_staff = $('#is_staff').is(':checked'); // true/false
+          jsonData.is_active = $('#is_active').is(':checked'); // true/false
+
+          // Собираем ID отмеченных групп
+          let selectedGroups = [];
+          $('input[type="checkbox"][name^="group-"]:checked').each(function() {
+              // Извлекаем ID группы из имени (например, "group-1" → 1)
+              let groupId = parseInt(this.name.replace('group-', ''));
+              selectedGroups.push(groupId);
+          });
+
+          // Добавляем группы в JSON
+          jsonData.groups = selectedGroups;
+
+          $.ajax({
+              url: '/accounts/api/users/edit/'+userId,
+              method: 'PUT',
+              data: JSON.stringify(jsonData),
+              headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+               },
+               statusCode: {
+                 200: function(result) {
+                     console.log(result)
+                       alertSuccess('Пользователь успешно изменен')
+                       $('.update-user-success').on('click', () => {
+
+                       });
+                 },
+                 406: function(result) {
+                       alertError(result.responseJSON.error)
+                 },
+                 400: function(result) {
+                   let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                   // Если есть JSON с ошибками
+                     if (result.responseJSON) {
+                         // Собираем все ошибки в один текст
+                         const errors = [];
+                         for (const field in result.responseJSON) {
+                             errors.push(...result.responseJSON[field]);
+                         }
+                         errorMessage = errors.join('<br>');
+                     }
+                     // Если нет JSON, но есть текст
+                     else if (result.responseText) {
+                         try {
+                             const json = JSON.parse(result.responseText);
+                             errorMessage = json.message || result.responseText;
+                         } catch {
+                             errorMessage = result.responseText;
+                         }
+                     }
+
+                     // Показываем ошибку пользователю
+                     alertError(errorMessage);
+                 }
+
+               },
+              error: function(e) {
+                console.log(e)
+                let status = '';
+                if(e.status){
+                  status = 'Статус ошибки - ' + e.status;
+                }
+                let detail = '';
+                if(e.responseJSON)
+                {
+                  detail = e.responseJSON.detail;
+                }
+                alertError(`${status}<br>${detail}`)
+              },
+              complete: function() {
+                submitButton.prop('disabled', false);
+                submitButton.html(originalText); // Восстанавливаем текст кнопки
+              }
+          });
+        });
+
+        function alertSuccess (text)
+        {
+          Swal.fire({
+              html: '<div class="mt-3">' +
+                  '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+                  '<div class="mt-4 pt-2 fs-15">' +
+                  '<h4>Успех !</h4>' +
+                  `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                  '</div>' +
+                  '</div>',
+              showCancelButton: true,
+              showConfirmButton: false,
+              cancelButtonClass: 'btn btn-primary w-xs mb-1 update-user-success',
+              cancelButtonText: 'Oк',
+              buttonsStyling: false,
+              showCloseButton: true
+          })
         }
-      });
 
-
-
+        function alertError(text){
+          Swal.fire({
+              html: '<div class="mt-3">' +
+                  '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+                  '<div class="mt-4 pt-2 fs-15">' +
+                  '<h4>Упс...! Что то пошло не так!</h4>' +
+                  `<p class="text-muted mx-4 mb-0">${text}</p>` +
+                  '</div>' +
+                  '</div>',
+              showCancelButton: true,
+              showConfirmButton: false,
+              cancelButtonClass: 'btn btn-primary w-xs mb-1 update-user-error',
+              cancelButtonText: 'Закрыть',
+              buttonsStyling: false,
+              showCloseButton: true
+          })
+        }
     });
+
 </script>

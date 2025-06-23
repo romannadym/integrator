@@ -9,7 +9,7 @@ from accounts.api.api import GetUser, GetGroup, GetContact, GetOrganization
 
 from accounts.forms import AddUserForm, EditUserForm, DeleteUserForm, UserGroupForm, DeleteUserGroupForm
 from accounts.forms import OrganizationContactForm, OrganizationForm, ContactForm, OrganizationDeleteForm
-
+from integrator.apps.functions import is_admin_or_engineer
 @login_required
 def UserListView(request):
     if not request.user.groups.filter(name = 'Администратор').exists():
@@ -38,14 +38,17 @@ def AddUserView(request):
 
 @login_required
 def EditUserView(request, user_id):
-    if not request.user.groups.filter(name = 'Администратор').exists():
-        return redirect('login', link = 'list-user')
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
 
     user = GetUser(user_id, True)
     groups = GroupsListUserAPIView().get(request = request, user_id = user_id).data
     form = EditUserForm(instance = user)
 
-    context = {'form': form, 'groups': groups, 'search': True, 'link': 'list-user', 'delete_link': 'delete-user'}
+    context = {'form': form, 'groups': groups, 'search': True, 'link': 'list-user', 'delete_link': 'delete-user', 'permissions': permissions}
     return render(request, 'users/edit.html', context)
 
 @login_required

@@ -54,44 +54,44 @@
             </div>
         </div>
         <!--end card-->
-
+        {% if permissions.is_admin %}
         <div class="card">
             <div class="card-body">
               <table class="table">
                 <tbody>
                     <tr>
                         <th scope="row" style="text-align: center;">
-                          <label class="form-check-label" for="SwitchCheck1">{{ form.is_superuser.label }}</label><br>
+                          <label class="form-check-label" for="{{ form.is_superuser.name }}">{{ form.is_superuser.label }}</label><br>
                         <!--  <span class="text-muted">{{ form.is_superuser.help_text|safe }}</span>-->
                         </th>
                         <td style="white-space: nowrap;vertical-align: middle;text-align: center;">
                           <div class="form-check form-switch">
-                              <input class="form-check-input" name="{{ form.is_superuser.name }}" type="checkbox" role="switch" id="SwitchCheck1" {% if form.is_superuser.value %}checked{% endif %}>
-                              <label class="form-check-label text-muted ms-2" for="SwitchCheck1"> Да/Нет</label>
+                              <input class="form-check-input" name="{{ form.is_superuser.name }}" type="checkbox" role="switch" id="{{ form.is_superuser.name }}" {% if form.is_superuser.value %}checked{% endif %}>
+                              <label class="form-check-label text-muted ms-2" for="{{ form.is_superuser.name }}"> Да/Нет</label>
                           </div>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row" style="text-align: center;">
-                          <label class="form-check-label" for="SwitchCheck2">{{ form.is_staff.label }}</label><br>
+                          <label class="form-check-label" for="{{ form.is_staff.name }}">{{ form.is_staff.label }}</label><br>
                         <!--   <span class="text-muted">{{ form.is_staff.help_text|safe }}</span>-->
                         </th>
                         <td style="white-space: nowrap;vertical-align: middle;text-align: center;">
                           <div class="form-check form-switch">
-                            <input class="form-check-input" name="{{ form.is_staff.name }}" type="checkbox" role="switch" id="SwitchCheck2" {% if form.is_staff.value %}checked{% endif %}>
-                            <label class="form-check-label text-muted ms-2" for="SwitchCheck2"> Да/Нет</label>
+                            <input class="form-check-input" name="{{ form.is_staff.name }}" type="checkbox" role="switch" id="{{ form.is_staff.name }}" {% if form.is_staff.value %}checked{% endif %}>
+                            <label class="form-check-label text-muted ms-2" for="{{ form.is_staff.name }}"> Да/Нет</label>
                           </div>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row" style="text-align: center;">
-                          <label class="form-check-label" for="SwitchCheck3">{{ form.is_active.label }}</label><br>
+                          <label class="form-check-label" for="{{ form.is_active.name }}">{{ form.is_active.label }}</label><br>
                         <!--   <span class="text-muted">{{ form.is_active.help_text|safe }}</span>-->
                         </th>
                         <td style="white-space: nowrap;vertical-align: middle;text-align: center;">
                           <div class="form-check form-switch">
-                            <input class="form-check-input" name="{{ form.is_active.name }}" type="checkbox" role="switch" id="SwitchCheck3" {% if form.is_active.value %}checked{% endif %}>
-                            <label class="form-check-label text-muted ms-2" for="SwitchCheck3"> Да/Нет</label>
+                            <input class="form-check-input" name="{{ form.is_active.name }}" type="checkbox" role="switch" id="{{ form.is_active.name }}" {% if form.is_active.value %}checked{% endif %}>
+                            <label class="form-check-label text-muted ms-2" for="{{ form.is_active.name }}"> Да/Нет</label>
                           </div>
                         </td>
                     </tr>
@@ -115,7 +115,7 @@
             </div>
         </div>
         <!--end card-->
-
+        {% endif %}
     </div>
     <!--end col-->
     <div class="col-xxl-9">
@@ -171,47 +171,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 <script type="text/javascript">
     $(document).ready(function(){
-        $('#id_organization').select2({
-            ajax: {
-                // Правильное чтение data-ajax--url
-                url: $('#id_organization').attr('data-ajax--url'),
 
-                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
-                data: function(params) {
-                    return {
-                        term: params.term,
-                        _type: 'query',
-                        field_id: $('#id_organization').attr('data-field_id')  // или .data('field_id')
-                    };
-                },
-
-                // Дополнительные параметры из data-атрибутов
-                cache: $('#id_organization').attr('data-ajax--cache') === 'true',
-                dataType: 'json',
-                delay: 250,
-                processResults: function(data) {
-                  console.log(data)
-                    return { results: data.results };
-                }
-            },
-
-            // Другие настройки из data-атрибутов
-            minimumInputLength: parseInt($('#id_organization').attr('data-minimum-input-length')),
-            theme: $('#id_organization').attr('data-theme'),
-            allowClear: $('#id_organization').attr('data-allow-clear') === 'true',
-            language: {
-                 noResults: function() {
-                return `<button  type="button"
-                class="btn btn-primary"
-                onClick='task()'>+ Добавить</button>
-                </li>`;
-                }
-             },
-
-            escapeMarkup: function (markup) {
-                return markup;
-            }
-      }).prop('disabled', true).trigger('change.select2');
     })
 </script>
   {% endblock %}
