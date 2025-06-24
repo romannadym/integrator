@@ -1,4 +1,4 @@
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import HttpResponse
 
 from rest_framework import status
@@ -28,23 +28,70 @@ class EquipmentsListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-        summary = 'Список оборудования',
-        description = '<ol><li>"id" - Идентификатор оборудования</li><li>"type_name" - Наименование типа оборудования</li>\
+        summary='Список оборудования',
+        description='<ol><li>"id" - Идентификатор оборудования</li><li>"type_name" - Наименование типа оборудования</li>\
         <li>"vendor_name" - Наименование вендора оборудования</li><li>"brand_name" - Наименование бренда оборудования</li>\
         <li>"model_name" - Наименование модели оборудования</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = EquipmentsListSerializer(many = True))}
+        responses={(200, 'application/json'): OpenApiResponse(response=EquipmentsListSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
+        # Получаем параметры от DataTables через request.GET
+        draw = request.GET.get('draw', 1)
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '')
 
-        list = EquipmentModel.objects.all().annotate(
-            type_name = F('type__name'),
-            vendor_name = F('vendor__name'),
-            brand_name = F('brand__name'),
-            model_name = F('model__name')
+        # Получаем параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', 0)
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок DataTables на поля модели
+        column_map = {
+            '0': 'id',
+            '1': 'type__name',
+            '2': 'vendor__name',
+            '3': 'brand__name',
+            '4': 'model__name'
+        }
+        order_field = column_map.get(str(order_column_index), 'id')
+
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос с аннотациями
+        queryset = EquipmentModel.objects.all().annotate(
+            type_name=F('type__name'),
+            vendor_name=F('vendor__name'),
+            brand_name=F('brand__name'),
+            model_name=F('model__name')
         )
 
-        serializer = EquipmentsListSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        # Применяем поиск, если есть поисковый запрос
+        if search_value:
+            queryset = queryset.filter(
+                Q(type__name__icontains=search_value) |
+                Q(vendor__name__icontains=search_value) |
+                Q(brand__name__icontains=search_value) |
+                Q(model__name__icontains=search_value)
+            )
+
+        # Общее количество записей (до пагинации)
+        total_records = queryset.count()
+
+        # Применяем сортировку и пагинацию
+        queryset = queryset.order_by(order_field)[start:start + length]
+
+        serializer = EquipmentsListSerializer(queryset, many=True)
+
+        # Формируем ответ в формате, ожидаемом DataTables
+        response_data = {
+            "draw": int(draw),
+            "recordsTotal": total_records,
+            "recordsFiltered": total_records,  # Можно изменить если применяется фильтрация
+            "data": serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary = 'Добавление оборудования',
@@ -135,16 +182,38 @@ class EquipmentTypesListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-
-        summary = 'Список типов оборудования',
-        description = '<ol><li>"id" - Идентификатор типа оборудования</li><li>"name" - Наименование типа оборудования</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = EquipmentTypesSerializer(many = True))}
+        summary='Список типов оборудования',
+        description='<ol><li>"id" - Идентификатор типа оборудования</li><li>"name" - Наименование типа оборудования</li></ol>',
+        responses={(200, 'application/json'): OpenApiResponse(response=EquipmentTypesSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
-        list = TypeModel.objects.all()
+        # Получаем параметр поиска от Select2
+        search_term = request.GET.get('term', '').strip()
 
-        serializer = EquipmentTypesSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        queryset = TypeModel.objects.all()
+
+        # Применяем фильтрацию, если есть поисковый запрос
+        if search_term:
+            queryset = queryset.filter(
+                Q(name__icontains=search_term) |
+                Q(id__icontains=search_term)
+                )
+        serializer = EquipmentTypesSerializer(queryset, many=True)
+
+        # Форматируем ответ в формате, ожидаемом Select2
+        results = [{
+            "id": item["id"],
+            "text": item["name"]
+        } for item in serializer.data]
+
+        response_data = {
+            "results": results,
+            "pagination": {
+                "more": False  # Можно реализовать пагинацию, если нужно
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
 
@@ -280,16 +349,40 @@ class EquipmentVendorsListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-
-        summary = 'Список вендоров оборудования',
-        description = '<ol><li>"id" - Идентификатор вендора оборудования</li><li>"name" - Наименование вендора оборудования</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = EquipmentVendorsSerializer(many = True))}
+        summary='Список вендоров оборудования',
+        description='<ol><li>"id" - Идентификатор вендора оборудования</li><li>"name" - Наименование вендора оборудования</li></ol>',
+        responses={(200, 'application/json'): OpenApiResponse(response=EquipmentVendorsSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
-        list = VendorModel.objects.all()
+        # Получаем параметры от Select2
+        search_term = request.GET.get('term', '').strip()
 
-        serializer = EquipmentVendorsSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        queryset = VendorModel.objects.all()
+
+        # Применяем фильтрацию, если есть поисковый запрос
+        if search_term:
+            queryset = queryset.filter(
+                Q(name__icontains=search_term) |
+                Q(id__icontains=search_term)
+                )
+
+
+        serializer = EquipmentVendorsSerializer(queryset, many=True)
+
+        # Форматируем ответ в формате, ожидаемом Select2
+        results = [{
+            "id": item["id"],
+            "text": item["name"]
+        } for item in serializer.data]
+
+        response_data = {
+            "results": results,
+            "pagination": {
+                "more": False  # Указывает, есть ли еще страницы
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
 
@@ -425,18 +518,39 @@ class EquipmentBrandsListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-
-        summary = 'Список брендов оборудования',
-        description = '<ol><li>"id" - Идентификатор бренда оборудования</li><li>"name" - Наименование бренда оборудования</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = EquipmentBrandsSerializer(many = True))}
-
+        summary='Список брендов оборудования',
+        description='<ol><li>"id" - Идентификатор бренда оборудования</li><li>"name" - Наименование бренда оборудования</li></ol>',
+        responses={(200, 'application/json'): OpenApiResponse(response=EquipmentBrandsSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
+        # Получаем параметры от Select2
+        search_term = request.GET.get('term', '').strip()
 
-        list = BrandModel.objects.all()
+        queryset = BrandModel.objects.all()
 
-        serializer = EquipmentBrandsSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        # Применяем фильтрацию, если есть поисковый запрос
+        if search_term:
+            queryset = queryset.filter(
+                Q(name__icontains=search_term) |
+                Q(id__icontains=search_term)
+                )
+
+        serializer = EquipmentBrandsSerializer(queryset, many=True)
+
+        # Форматируем ответ в формате, ожидаемом Select2
+        results = [{
+            "id": item["id"],
+            "text": item["name"]
+        } for item in serializer.data]
+
+        response_data = {
+            "results": results,
+            "pagination": {
+                "more": False  # Можно реализовать пагинацию, если нужно
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
 
@@ -573,17 +687,61 @@ class EquipmentModelsListAPIView(APIView):
     permission_classes = [IsAdminUser,]
 
     @extend_schema(
-
-        summary = 'Список моделей оборудования',
-        description = '<ol><li>"id" - Идентификатор модели оборудования</li><li>"name" - Наименование модели оборудования</li>\
+        summary='Список моделей оборудования',
+        description='<ol><li>"id" - Идентификатор модели оборудования</li><li>"name" - Наименование модели оборудования</li>\
         <li>"brand_name" - Наименование бренда</li><li>"vendor_name" - Наименование вендора</li></ol>',
-        responses = {(200, 'application/json'): OpenApiResponse(response = EquipmentModelsSerializer(many = True))}
+        responses={(200, 'application/json'): OpenApiResponse(response=EquipmentModelsSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
+        # Получаем параметры от Select2
+        search_term = request.GET.get('term', '').strip()
+        page = int(request.GET.get('page', 1))
+        page_size = 20  # Количество элементов на странице
+        brand_id = request.GET.get('brand_id')  # Дополнительный фильтр по бренду
+        vendor_id = request.GET.get('vendor_id')  # Дополнительный фильтр по вендору
 
-        list = ModelModel.objects.all().annotate(vendor_name = F('vendor__name'), brand_name = F('brand__name'))
-        serializer = EquipmentModelsSerializer(list, many = True)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        # Базовый запрос с аннотациями
+        queryset = ModelModel.objects.all().annotate(
+            vendor_name=F('vendor__name'),
+            brand_name=F('brand__name')
+        )
+
+        # Применяем фильтрацию по поисковому запросу
+        if search_term:
+            queryset = queryset.filter(
+                Q(name__icontains=search_term) |
+                Q(id__icontains=search_term) |
+                Q(brand__name__icontains=search_term) |
+                Q(vendor__name__icontains=search_term)
+            )
+
+        # Дополнительная фильтрация по бренду
+        if brand_id:
+            queryset = queryset.filter(brand_id=brand_id)
+
+        # Дополнительная фильтрация по вендору
+        if vendor_id:
+            queryset = queryset.filter(vendor_id=vendor_id)
+
+
+        serializer = EquipmentModelsSerializer(queryset, many=True)
+
+        # Форматируем ответ в формате, ожидаемом Select2
+        results = [{
+            "id": item["id"],
+            "text": f"{item['name']} ({item['brand_name']})",  # Можно настроить формат отображения
+            "brand_name": item["brand_name"],
+            "vendor_name": item["vendor_name"]
+        } for item in serializer.data]
+
+        response_data = {
+            "results": results,
+            "pagination": {
+                "more": False
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
 

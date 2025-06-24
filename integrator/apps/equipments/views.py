@@ -8,7 +8,7 @@ from equipments.api.api import GetEquipment, GetEquipmentType, GetEquipmentVendo
 from equipments.forms import EquipmentForm, EquipmentDeleteForm, TypeForm, TypeDeleteForm, VendorForm, VendorDeleteForm, BrandForm, BrandDeleteForm, ModelForm, ModelDeleteForm
 
 from admin.forms import ImportForm
-
+from integrator.apps.functions import is_admin_or_engineer
 #Типы оборудования
 @login_required
 def TypesListView(request):
@@ -243,6 +243,11 @@ def DeleteModelView(request, model_id):
 
 @login_required
 def EquipmentsListView(request):
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     if not request.user.groups.filter(name = 'Администратор').exists():
         return redirect('login', link = 'list-equipments')
 
@@ -253,9 +258,9 @@ def EquipmentsListView(request):
         'edit_link': 'edit-equipment',
         'delete_link': 'api-delete-equipments',
     }
-    context = {'items': items, 'cols': cols, 'label': 'Оборудование', 'links': links}
+    context = {'items': items, 'cols': cols, 'label': 'Оборудование', 'links': links, 'permissions': permissions}
 
-    return render(request, 'admin/list.html', context)
+    return render(request, 'equipments/index.html', context)
 
 @login_required
 def AddEquipmentView(request):

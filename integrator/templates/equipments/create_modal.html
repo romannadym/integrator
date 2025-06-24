@@ -1,0 +1,345 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalAddEquipment" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalLabel">Новое оборудование</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data" class="tablelist-form" autocomplete="off" id="add-equipment-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                  <div class="row-g-3">
+
+                      <div class="col-lg-12 mt-3">
+                        <h6 for="type" class="fw-semibold">
+                          Тип:
+                        </h6>
+                        <select class="" name="type" id="type" required></select>
+                      </div>
+
+                      <div class="col-lg-12 mt-3">
+                        <h6 for="brand" class="fw-semibold">
+                          Бренд:
+                        </h6>
+                        <select class="" name="brand" id="brand" required></select>
+                      </div>
+
+                      <div class="col-lg-12 mt-3">
+                        <h6 for="model" class="fw-semibold">
+                        Модель:
+                        </h6>
+                        <select class="" name="model" id="model" required></select>
+                      </div>
+
+                      <div class="col-lg-12 mt-3">
+                        <h6 for="vendor" class="fw-semibold">
+                          Вендор:
+                        </h6>
+                        <select class="" name="vendor" id="vendor" required></select>
+                      </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="submit" class="btn btn-success" id="add-e-btn">Создать</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+  $(document).ready(function () {
+
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              document.cookie.split(';').forEach(cookie => {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                  }
+              });
+          }
+          return cookieValue;
+      }
+
+      $('#add-equipment-form').on('submit', function(evn) {
+        evn.preventDefault();
+        let submitButton = $('#add-e-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+        submitButton.prop('disabled', true);
+        // Сохраняем текст, если надо восстановить потом
+        let originalText = submitButton.html();
+
+        // Блокируем и добавляем фиксированные размеры
+        let buttonWidth = submitButton.outerWidth();
+        let buttonHeight = submitButton.outerHeight();
+
+        submitButton.prop('disabled', true).css({
+          width: buttonWidth,
+          height: buttonHeight
+        }).html(`
+          <span class="d-flex justify-content-center align-items-center w-100 h-100">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          </span>
+        `);
+        let formData = new FormData(this);
+        // Для отладки - выводим данные формы в консоль
+        for (var pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1]);
+        }
+        $.ajax({
+            url: '/equipments/api/list/',
+            method: 'POST',
+            data: formData,
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            statusCode: {
+              201: function(result) {
+                  console.log(result)
+                    alertSuccess('Оборудование успешно создано!')
+                    $('.create-equipment-success').on('click', () => {
+                      $('#showModalAddEquipment').modal('hide')
+                      $('#add-equipment-form')[0].reset();
+                      equipmentsTable.ajax.reload(null, false)
+                    });
+              },
+              400: function(result) {
+                let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertError(errorMessage);
+              }
+            },
+
+            error: function(e) {
+              console.log(e)
+              let error = '';
+              if(e.status){
+                error = 'Статус ошибки - ' + e.status;
+              }
+              alertError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+            },
+            complete: function() {
+                // Разблокируем кнопку после завершения запроса
+                submitButton.prop('disabled', false);
+                submitButton.html('Создать'); // Восстанавливаем текст кнопки
+            }
+        });
+      })
+
+      $('#type').select2({
+          dropdownParent: $('#showModalAddEquipment'),
+          ajax: {
+              // Правильное чтение data-ajax--url
+              url: '/equipments/api/types/',
+
+              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+              data: function(params) {
+                  return {
+                    term: params.term || '',
+                    page: params.page || 1
+                  };
+              },
+
+              // Дополнительные параметры из data-атрибутов
+              cache: true,
+              dataType: 'json',
+              delay: 250,
+              processResults: function(data) {
+                console.log(data)
+                  return { results: data.results };
+              }
+          },
+
+          // Другие настройки из data-атрибутов
+          minimumInputLength: 0,
+          allowClear: true,
+          language: {
+               noResults: function() {
+              return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddType"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+              }
+           },
+
+          escapeMarkup: function (markup) {
+              return markup;
+          }
+    });
+
+    $('#brand').select2({
+            dropdownParent: $('#showModalAddEquipment'),
+            ajax: {
+                // Правильное чтение data-ajax--url
+                url: '/equipments/api/brands/',
+
+                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+                data: function(params) {
+                    return {
+                      term: params.term || '',
+                      page: params.page || 1
+                    };
+                },
+
+                // Дополнительные параметры из data-атрибутов
+                cache: true,
+                dataType: 'json',
+                delay: 250,
+                processResults: function(data) {
+                  console.log(data)
+                    return { results: data.results };
+                }
+            },
+
+            // Другие настройки из data-атрибутов
+            minimumInputLength: 0,
+            allowClear: true,
+            language: {
+                 noResults: function() {
+                return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddBrand"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+                }
+             },
+
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+      });
+
+      $('#model').select2({
+            dropdownParent: $('#showModalAddEquipment'),
+            ajax: {
+                // Правильное чтение data-ajax--url
+                url: '/equipments/api/models/',
+
+                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+                data: function(params) {
+                    return {
+                      term: params.term || '',
+                      page: params.page || 1,
+                      brand_id: $('#brand').val(),  // Передаем выбранный бренд для фильтрации
+                      vendor_id: $('#vendor').val() // Передаем выбранного вендора для фильтрации
+                    };
+                },
+
+                // Дополнительные параметры из data-атрибутов
+                cache: true,
+                dataType: 'json',
+                delay: 250,
+                processResults: function(data) {
+                  console.log(data)
+                    return { results: data.results };
+                }
+            },
+
+            // Другие настройки из data-атрибутов
+            minimumInputLength: 0,
+            allowClear: true,
+            language: {
+                 noResults: function() {
+                return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddModel"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+                }
+             },
+
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+      });
+
+      $('#vendor').select2({
+              dropdownParent: $('#showModalAddEquipment'),
+              ajax: {
+                  // Правильное чтение data-ajax--url
+                  url: '/equipments/api/vendors/',
+
+                  // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+                  data: function(params) {
+                      return {
+                        term: params.term || '',
+                        page: params.page || 1
+                      };
+                  },
+
+                  // Дополнительные параметры из data-атрибутов
+                  cache: true,
+                  dataType: 'json',
+                  delay: 250,
+                  processResults: function(data) {
+                    console.log(data)
+                      return { results: data.results };
+                  }
+              },
+
+              // Другие настройки из data-атрибутов
+              minimumInputLength: 0,
+              allowClear: true,
+              language: {
+                   noResults: function() {
+                  return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddVendor"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
+                  }
+               },
+
+              escapeMarkup: function (markup) {
+                  return markup;
+              }
+        });
+    })
+  function alertSuccess (text)
+  {
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Успех !</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 create-equipment-success',
+        cancelButtonText: 'Oк',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
+  function alertError(text){
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Упс...! Что то пошло не так!</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 create-equipment-error',
+        cancelButtonText: 'Закрыть',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+</script>
