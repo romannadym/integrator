@@ -5,16 +5,16 @@
         <!-- Dark Logo-->
         <a href="index.html" class="logo logo-dark">
             <span class="logo-sm">
-                <img src="{% static 'assets/images/logo-sm.png' %}" alt="" height="22">
+                <img src="{% static 'img/favicon/favicon.ico' %}" alt="" height="22">
             </span>
             <span class="logo-lg">
-                <img src="{% static 'assets/images/logo-dark.png' %}" alt="" height="17">
+                <img src="{% static 'img/favicon/favicon.ico' %}" alt="" height="17">
             </span>
         </a>
         <!-- Light Logo-->
         <a href="index.html" class="logo logo-light">
             <span class="logo-sm">
-                <img src="{% static 'assets/images/logo-sm.png' %}" alt="" height="22">
+                <img src="{% static 'img/favicon/favicon.ico' %}" alt="" height="22">
             </span>
             <span class="logo-lg">
               <!--  <img src="{% static 'assets/images/лого-рус.jpg' %}" alt="" height="45">-->
@@ -33,8 +33,8 @@
             <ul class="navbar-nav" id="navbar-nav">
                 <li class="menu-title"><span data-key="t-menu">Техподдержка</span></li>
                 <li class="nav-item {% if request.path == '/applications/apps_list/' %}active{% endif %}">
-                  <a href="{% url 'app-list' %}" class="nav-link {% if request.path == '/applications/apps_list/' %}active{% endif %}" data-key="t-list-view">
-                  <i class="ri-apps-2-line"></i>    Заявки </a>
+                  <a href="{% url 'app-list' %}" class="nav-link menu-link {% if request.path == '/applications/apps_list/' %}active{% endif %}" data-key="t-list-view">
+                  <i class="ri-apps-2-line"></i> <span data-key="t-tickets">Заявки </span></a>
                 </li>
 
             </ul>
@@ -44,7 +44,7 @@
 
                   <li class="nav-item {% if 'contracts' in request.path %}active{% endif %}">
                       <a class="nav-link menu-link {% if 'contracts' in request.path %}active{% endif %}" href="{% url 'list-contracts' %}">
-                          <i class="ri-honour-line"></i> <span data-key="t-administration">Контракты</span>
+                          <i class="ri-honour-line"></i> <span data-key="t-contracts">Контракты</span>
                       </a>
                   </li>
                   <li class="nav-item {% if 'accounts' in request.path %}active{% endif %}">
