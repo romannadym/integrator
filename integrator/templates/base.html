@@ -16,8 +16,7 @@
     {% endblock description %}
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Premium Multipurpose Admin & Dashboard Template" name="description" />
-    <meta content="Themesbrand" name="author" />
+
     <!-- App favicon -->
     <link rel="shortcut icon" href="{% static 'img/favicon/favicon.ico' %}">
     {% block pagecss %}{% endblock %}
@@ -34,7 +33,14 @@
     <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" />
     <!-- custom Css--> <link href="{% static 'assets/css/custom.min.css' %}" rel="stylesheet" type="text/css" />
     <script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}" crossorigin="anonymous"></script>
-
+    <!-- ... другие мета-теги ... -->
+    <script>
+        // Применяем тему ДО загрузки страницы
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme);
+        })();
+    </script>
 
 </head>
 
