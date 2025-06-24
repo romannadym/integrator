@@ -19,10 +19,23 @@ def NotificationsView(request):
         old = AppHistoryModel.objects.filter((Q(application__client = request.user) & (Q(type = 1) | Q(type = 2))) & Q(viewed__user = request.user)).annotate(new = Value('0'))[:total]
 
     elif engineer:
-        new = AppHistoryModel.objects.filter((Q(application__engineer = request.user) & (Q(type = 1) | Q(type = 2) | Q(type = 7))) & (Q(viewed__isnull = True) | ~Exists(AppHistoryViewedModel.objects.filter(user = request.user, history__id = OuterRef('pk'))))).annotate(new = Value('1'))
-        if new.count() < 50:
-            total = 50 - new.count()
-        old = AppHistoryModel.objects.filter((Q(application__engineer = request.user) & (Q(type = 1) | Q(type = 2) | Q(type = 7))) & Q(viewed__user = request.user)).annotate(new = Value('0'))[:total]
+        new = AppHistoryModel.objects.filter(
+                Q(application__engineers__id=request.user.id) &  # Правильное поле для M2M
+                (Q(type=1) | Q(type=2) | Q(type=7)) &
+                (Q(viewed__isnull=True) |
+                ~Exists(AppHistoryViewedModel.objects.filter(
+                    user_id=request.user.id,
+                    history_id=OuterRef('pk')
+                ))
+            )).annotate(new=Value('1'))
+
+        total = max(50 - new.count(), 0)
+        old = AppHistoryModel.objects.filter(
+            Q(application__engineers__id=request.user.id) &
+            (Q(type=1) | Q(type=2) | Q(type=7)) &
+            Q(viewed__user_id=request.user.id)
+        ).annotate(new=Value('0'))[:total]
+
     elif admin:
         new = AppHistoryModel.objects.filter((Q(type = 1) | Q(type = 2) | Q(type = 5) | Q(type = 6)) & (Q(viewed__isnull = True) | ~Exists(AppHistoryViewedModel.objects.filter(user = request.user, history__id = OuterRef('pk'))))).annotate(new = Value('1'))
         if new.count() < 50:

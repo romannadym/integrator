@@ -508,7 +508,7 @@ class ApplicationsListAPIViewNew(APIView):
         prms = {}
         # Начальный queryset
         # Если пользователь не админ - показываем только его заявки
-        if not is_admin:
+        if not is_staff:
             client = User.objects.filter(id = request.user.id)\
                 .annotate(
                     fio = Trim(Concat('last_name', Value(' '), 'first_name')),

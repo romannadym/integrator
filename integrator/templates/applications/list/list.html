@@ -334,7 +334,7 @@
                   render: function(data, type, row) {
                       // Создание ссылки на страницу деталей заявки с использованием id
                       let btnActions = ``;
-                      {% if permissions.is_staff %}
+                      {% if permissions.is_admin %}
                         btnActions = `<li><a class="dropdown-item edit-item-btn" href="#showModalEditTicket"
                                data-bs-toggle="modal"
                                data-edit-id="${data}"

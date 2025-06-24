@@ -4,9 +4,11 @@
         <div class="d-flex align-items-center">
             <h5 class="card-title mb-0 flex-grow-1">Заявки на запчасти</h5>
             <div class="flex-shrink-0">
+              {% if permissions.is_staff %}
                 <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-danger add-btn" data-bs-toggle="modal" data-bs-target="#showModalCreateTicketZips"><i class="ri-add-line align-bottom" ></i></button>
                 </div>
+              {% endif %}
             </div>
         </div>
     </div>
@@ -253,6 +255,7 @@
                     disabled = 'disabled';
                   }
                   return `<div class="dropdown">
+                              {% if permissions.is_staff %}
                               <button class="btn btn-sofz-secondary btn-sm dropdown" ${disabled} type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                   <i class="ri-more-fill align-middle"></i>
                               </button>
@@ -261,6 +264,7 @@
                                       ${returnBtn}
                                   </li>
                               </ul>
+                              {% endif %}
                           </div>`;
               },
               orderable: false
