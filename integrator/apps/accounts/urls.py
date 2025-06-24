@@ -30,7 +30,7 @@ urlpatterns = [
     path('contacts/add/<int:organization_id>', AddContactView, name = 'add-contact'),
     path('contacts/edit/<int:contact_id>', EditContactView, name = 'edit-contact'),
 
-    path('api/contacts/<int:organization_id>', ContactsListAPIView.as_view(), name = 'api-contacts'),
+    path('api/organizations/<int:organization_id>/contacts/', ContactsListAPIView.as_view(), name = 'api-contacts'),
     path('api/contacts/<int:contact_id>', ContactAPIView.as_view(), name = 'api-edit-contacts'),
 
     path('api/organizations/', OrganizationsListAPIView.as_view(), name = 'api-organizations'),

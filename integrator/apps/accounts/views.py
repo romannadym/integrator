@@ -12,6 +12,11 @@ from accounts.forms import OrganizationContactForm, OrganizationForm, ContactFor
 from integrator.apps.functions import is_admin_or_engineer
 @login_required
 def UserListView(request):
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     if not request.user.groups.filter(name = 'Администратор').exists():
         return redirect('login', link = 'list-user')
 
@@ -23,7 +28,7 @@ def UserListView(request):
         'delete_link': 'api-delete-users',
     }
 
-    context = {'items': items, 'cols': cols, 'label': 'Справочник "Пользователи"', 'links': links}
+    context = {'items': items, 'cols': cols, 'label': 'Справочник "Пользователи"', 'links': links, 'permissions': permissions}
     return render(request, 'users/index.html', context)
 
 @login_required

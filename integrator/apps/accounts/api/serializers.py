@@ -9,7 +9,7 @@ from accounts.models import User, OrganizationModel, OrganizationContactModel
 class ContactsListSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrganizationContactModel
-        fields = ['id', 'fio']
+        fields = ['id', 'fio', 'email', 'phone']
 
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:

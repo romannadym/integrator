@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import APIException
 
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample, OpenApiTypes
 
 from accounts.models import User, OrganizationModel, OrganizationContactModel
 
@@ -15,25 +15,106 @@ from integrator.apps.parsers import NestedMultipartParser
 
 from accounts.api.serializers import *
 
-from integrator.apps.functions import is_admin_or_engineer
+from integrator.apps.functions import is_admin_or_engineer, is_engineer, is_admin
 
 @extend_schema(tags = ['Контакты организации (Done)'])
 class ContactsListAPIView(APIView):
-    permission_classes = [IsAuthenticated,]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary = 'Список контактов организации',
-        description = '<ol><li>"id" - Идентификатор контакта</li><li>"fio" - ФИО контакта</li></ol>',
-        parameters = [
-            OpenApiParameter(name = 'organization_id', description = 'Идентификатор организации', type = int, required = True, location = OpenApiParameter.PATH),
+        summary='Список контактов организации (для DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор контакта</li>
+            <li>"fio" - ФИО контакта</li>
+        </ol>
+        ''',
+        parameters=[
+            OpenApiParameter(name='organization_id', description='Идентификатор организации', type=int, required=True, location=OpenApiParameter.PATH),
+            OpenApiParameter(name='draw', description='DataTables draw counter', type=int, required=False),
+            OpenApiParameter(name='start', description='Pagination start index', type=int, required=False),
+            OpenApiParameter(name='length', description='Number of records per page', type=int, required=False),
+            OpenApiParameter(name='search[value]', description='Global search value', type=str, required=False),
+            OpenApiParameter(name='order[0][column]', description='Column to order by', type=int, required=False),
+            OpenApiParameter(name='order[0][dir]', description='Order direction (asc/desc)', type=str, required=False),
         ],
-        responses = {(200, 'application/json'): OpenApiResponse(response = ContactsListSerializer(many = True))}
+        responses={
+            200: OpenApiResponse(
+                response=OpenApiTypes.OBJECT,
+                description='Response format for DataTables',
+                examples=[
+                    OpenApiExample(
+                        name="DataTables example",
+                        value={
+                            "draw": 1,
+                            "recordsTotal": 100,
+                            "recordsFiltered": 50,
+                            "data": [
+                                {"id": 1, "fio": "Иванов Иван Иванович", "email": "ivanov@ivan.ru", "phone": "1111111"},
+                                {"id": 2, "fio": "Петров Петр Петрович", "email": "petrov@petr.ru", "phone": "2222222"}
+                            ]
+                        }
+                    )
+                ]
+            )
+        }
     )
     def get(self, request, organization_id, *args, **kwargs):
-        contacts = OrganizationContactModel.objects.filter(Q(organization_id = organization_id) & ~Q(email = 'serindework@mail.ru'))
-        serializer = ContactsListSerializer(contacts, many = True)
+        # Получаем параметры DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '')
+        order_column = request.GET.get('order[0][column]', 0)
+        order_dir = request.GET.get('order[0][dir]', 'asc')
 
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        # Базовый запрос
+        queryset = OrganizationContactModel.objects.filter(
+            Q(organization_id=organization_id) &
+            ~Q(email='serindework@mail.ru')
+        )
+
+        # Полное количество записей (до фильтрации)
+        records_total = queryset.count()
+
+        # Применяем поиск (если есть)
+        if search_value:
+            queryset = queryset.filter(
+                Q(fio__icontains=search_value) |
+                Q(email__icontains=search_value) |
+                Q(phone__icontains=search_value)
+            )
+        # Количество записей после фильтрации
+        records_filtered = queryset.count()
+
+        # Определение сортировки
+        order_fields = ['fio', 'email', 'phone']  # Замените на ваши поля
+        try:
+            order_field = order_fields[int(order_column)]
+        except (IndexError, ValueError):
+            order_field = 'fio'  # Значение по умолчанию
+
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+
+        # Применяем сортировку
+        queryset = queryset.order_by(order_field)
+
+        # Пагинация
+        queryset = queryset[start:start + length]
+
+        # Сериализация
+        serializer = ContactsListSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            "draw": draw,
+            "recordsTotal": records_total,
+            "recordsFiltered": records_filtered,
+            "data": serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary = 'Добавление контакта',
@@ -45,8 +126,8 @@ class ContactsListAPIView(APIView):
         responses = {(201, 'application/json'): OpenApiResponse(response = ContactSerializer())}
     )
     def post(self, request, organization_id, *args, **kwargs):
-        if is_admin_or_engineer(request.user):
-            return Response({'error': 'Функционал доступен только для клиентов'}, status = status.HTTP_403_FORBIDDEN)
+        if is_engineer(request.user):
+            return Response({'error': 'Функционал доступен только для клиентов и администраторов'}, status = status.HTTP_403_FORBIDDEN)
 
         serializer = ContactSerializer(data = request.data)
         if serializer.is_valid():
@@ -87,9 +168,9 @@ class ContactAPIView(APIView):
     )
     def delete(self, request, contact_id, *args, **kwargs):
         contact = GetContact(contact_id)
-
-        if not request.user.organization_id == contact.organization_id:
-            return Response({'error': 'Доступ запрещен'}, status = status.HTTP_403_FORBIDDEN)
+        if not is_admin(request.user):
+            if not request.user.organization_id == contact.organization_id:
+                return Response({'error': 'Доступ запрещен'}, status = status.HTTP_403_FORBIDDEN)
 
         contact.delete()
         return Response({'message': 'Объект удален'}, status = status.HTTP_200_OK)

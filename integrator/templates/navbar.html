@@ -31,37 +31,30 @@
             <div id="two-column-menu">
             </div>
             <ul class="navbar-nav" id="navbar-nav">
-                <li class="menu-title"><span data-key="t-menu">Menu</span></li>
-                <li class="nav-item">
-                    <a class="nav-link menu-link {% if 'applications' in request.path %}active{% endif %}" href="#sidebarApps" data-bs-toggle="collapse" role="button" aria-expanded="{% if 'applications' in request.path %}true{% endif %}" aria-controls="sidebarApps">
-                        <i class="ri-apps-2-line"></i> <span data-key="t-apps">Тех. поддержка</span>
-                    </a>
-                    <div class="collapse menu-dropdown {% if 'applications' in request.path %}show{% endif %}" id="sidebarApps">
-                        <ul class="nav nav-sm flex-column">
-                          <li class="nav-item {% if request.path == '/applications/apps_list/' %}active{% endif %}">
-                            <a href="{% url 'app-list' %}" class="nav-link {% if request.path == '/applications/apps_list/' %}active{% endif %}" data-key="t-list-view">
-                                Заявки </a>
-                          </li>
-                        </ul>
-                    </div>
+                <li class="menu-title"><span data-key="t-menu">Техподдержка</span></li>
+                <li class="nav-item {% if request.path == '/applications/apps_list/' %}active{% endif %}">
+                  <a href="{% url 'app-list' %}" class="nav-link {% if request.path == '/applications/apps_list/' %}active{% endif %}" data-key="t-list-view">
+                  <i class="ri-apps-2-line"></i>    Заявки </a>
                 </li>
 
             </ul>
-
+            {% if permissions.is_admin %}
             <ul class="navbar-nav" id="navbar-nav">
                 <li class="menu-title"><span data-key="t-administration">Администрирование</span></li>
-                <li class="nav-item {% if 'contracts' in request.path %}active{% endif %}">
-                    <a class="nav-link menu-link {% if 'contracts' in request.path %}active{% endif %}" href="{% url 'list-contracts' %}">
-                        <i class="ri-honour-line"></i> <span data-key="t-administration">Контракты</span>
-                    </a>
-                </li>
-                <li class="nav-item {% if 'accounts' in request.path %}active{% endif %}">
-                    <a class="nav-link menu-link {% if 'accounts' in request.path %}active{% endif %}" href="{% url 'list-user' %}">
-                        <i class="ri-group-line"></i> <span data-key="t-users">Пользователи</span>
-                    </a>
-                </li>
+
+                  <li class="nav-item {% if 'contracts' in request.path %}active{% endif %}">
+                      <a class="nav-link menu-link {% if 'contracts' in request.path %}active{% endif %}" href="{% url 'list-contracts' %}">
+                          <i class="ri-honour-line"></i> <span data-key="t-administration">Контракты</span>
+                      </a>
+                  </li>
+                  <li class="nav-item {% if 'accounts' in request.path %}active{% endif %}">
+                      <a class="nav-link menu-link {% if 'accounts' in request.path %}active{% endif %}" href="{% url 'list-user' %}">
+                          <i class="ri-group-line"></i> <span data-key="t-users">Пользователи</span>
+                      </a>
+                  </li>
 
             </ul>
+            {% endif %}
         </div>
         <!-- Sidebar -->
     </div>

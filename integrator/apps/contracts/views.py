@@ -8,6 +8,7 @@ from contracts.api.api import GetSupportLevel, GetContract
 
 from contracts.forms import LevelForm, LevelDeleteForm, ContractForm, EquipmentForm, EquipmentFormset, ContractDeleteForm
 from accounts.forms import  ContactForm
+from integrator.apps.functions import is_admin_or_engineer
 @login_required
 def SupportLevelsListView(request):
     if not request.user.groups.filter(name = 'Администратор').exists():
@@ -52,6 +53,11 @@ def DeleteSupportLevelView(request, level_id):
 
 @login_required
 def ContractsListView(request):
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     if not request.user.groups.filter(name = 'Администратор').exists():
         return redirect('login', link = 'list-contracts')
 
@@ -66,7 +72,7 @@ def ContractsListView(request):
     formsets = [
         {'key': 'contacts', 'formset': [ContactForm()], 'label': 'Контактное лицо'},
     ]
-    context = {'items': items, 'form':form, 'formsets': formsets,  'cols': cols, 'label': 'Контракты', 'links': links}
+    context = {'items': items, 'form':form, 'formsets': formsets, 'permissions': permissions, 'cols': cols, 'label': 'Контракты', 'links': links}
 
     return render(request, 'contracts/index.html', context)
 
@@ -97,6 +103,11 @@ def AddContractView(request):
 
 @login_required
 def EditContractView(request, contract_id):
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     if not request.user.groups.filter(name = 'Администратор').exists():
         return redirect('login', link = 'list-contracts')
 
@@ -124,7 +135,7 @@ def EditContractView(request, contract_id):
         {'formset': formset, 'label': 'Оборудование'},
     ]
 
-    context = {'form': form, 'formsets': formsets, 'search': True, 'dates': True, 'link': 'list-contracts', 'delete_link': 'delete-contract'}
+    context = {'form': form, 'formsets': formsets, 'search': True, 'dates': True, 'link': 'list-contracts', 'delete_link': 'delete-contract', 'permissions': permissions}
     return render(request, 'contracts/edit/edit.html', context)
 
 @login_required

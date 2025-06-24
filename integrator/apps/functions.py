@@ -49,3 +49,9 @@ def send_telegram(params):
         return True
     except Exception:
         return False
+
+def is_engineer(user):
+    return user.groups.filter(name = 'Инженер').exists()
+
+def is_admin(user):
+    return user.groups.filter(name = 'Администратор').exists()

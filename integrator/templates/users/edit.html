@@ -132,18 +132,22 @@
                             <i class="far fa-user"></i> Изменить пароль
                         </a>
                     </li>
+                    {% if not permissions.is_engineer %}
                     <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#experience" role="tab">
                             <i class="far fa-envelope"></i> Контактные лица
                         </a>
                     </li>
+                    {% endif %}
                 </ul>
             </div>
             <div class="card-body p-4">
                 <div class="tab-content">
                     {% include "users/detail_tab.html" %}
                     {% include "users/change_pass_tab.html" %}
-                    {% include "users/contact_tab.html" %}
+                    {% if not permissions.is_engineer %}
+                      {% include "users/contact_tab.html" %}
+                    {% endif %}
                 </div>
             </div>
         </div>
