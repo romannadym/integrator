@@ -147,12 +147,30 @@ class EditUserSerializer(serializers.ModelSerializer):
             'is_active': {'default': False},
             'last_name': {'default': ''},
             'first_name': {'default': ''},
+            'inn': {'allow_blank': True}  # Разрешаем пустую строку
         }
 
+    def validate_inn(self, value):
+        """Преобразуем пустую строку в None"""
+        if value == '':
+            return None
+        return value
+
     def update(self, instance, validated_data):
-        # Обновляем основные поля
+        # Обрабатываем inn отдельно, если он есть в данных
+        if 'inn' in validated_data:
+            inn_value = validated_data['inn']
+            # Если inn пустой (уже преобразован в None в validate_inn)
+            if inn_value is None:
+                instance.inn = None
+            else:
+                instance.inn = inn_value
+            # Удаляем из validated_data, чтобы не перезаписать повторно
+            del validated_data['inn']
+
+        # Обновляем остальные поля
         fields = ['email', 'organization', 'first_name', 'last_name',
-                 'is_superuser', 'is_staff', 'is_active', 'inn',
+                 'is_superuser', 'is_staff', 'is_active',
                  'address', 'phone', 'telegram']
         for field in fields:
             if field in validated_data:
