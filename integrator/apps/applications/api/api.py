@@ -519,9 +519,14 @@ class ApplicationsListAPIViewNew(APIView):
             client['contracts'] = GetClientsContractsAPIView().get(request).data
 
             client = ClientSerializer(client).data
-            prms['client__organization_id'] = client['organization_id']
-        tickets = ApplicationModel.objects.filter(**prms)\
-            .annotate(
+            tickets = ApplicationModel.objects.filter(
+                Q(equipment__contract__client__organization_id=client['organization_id']) |
+                Q(equipment__contract__end_users__organization_id=client['organization_id'])
+            ).distinct()
+        else:
+            tickets = ApplicationModel.objects.filter(**prms)
+
+        tickets = tickets.annotate(
                 organization = Subquery(User.objects.filter(id = OuterRef('client_id')).values('organization__name')),
                 equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value('<br> (S/n: '), 'equipment__sn', Value(')')),
                 status_name = F('status__name'),
