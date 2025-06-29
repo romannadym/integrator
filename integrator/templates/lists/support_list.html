@@ -40,6 +40,57 @@
     <!--end card-->
 </div>
 <script type="text/javascript">
+
+  function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          document.cookie.split(';').forEach(cookie => {
+              cookie = cookie.trim();
+              if (cookie.startsWith(name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.split('=')[1]);
+              }
+          });
+      }
+      return cookieValue;
+  }
+
+  function alertDeleteSupportSuccess (text)
+  {
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Успех !</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-support-success',
+        cancelButtonText: 'Oк',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
+  function alertDeleteSupportError(text){
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Упс...! Что то пошло не так!</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-support-error',
+        cancelButtonText: 'Закрыть',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
   let supportTable;
   function initializeSupportTables(){
     supportTable = $('#supportTable').DataTable({
@@ -68,7 +119,7 @@
                            </button>
                            <ul class="dropdown-menu dropdown-menu-end" style="">
                                <li>
-                                   <a class="dropdown-item remove-item-btn" data-delete-support-id="${row.id}" href="#">
+                                   <a class="dropdown-item remove-support-btn" data-delete-support-id="${row.id}" href="#">
                                        <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
                                    </a>
                                </li>
@@ -111,8 +162,117 @@
   }
   document.addEventListener('DOMContentLoaded', function () {
 
-      initializeSupportTables();
-    //  $('#showModalAddOrg').modal('show');
+        initializeSupportTables();
+      //  $('#showModalAddOrg').modal('show');
+      $(document).on('click', '.remove-support-btn', function() {
+        let supportId = $(this).data('deleteSupportId');
+      //  console.log(supportId)
+        $.ajax({
+            url: '/contracts/api/levels/'+ supportId,
+            method: 'DELETE',
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            dataType: 'json',
+            statusCode: {
+              200: function(result) {
+                  console.log(result)
+                    alertDeleteSupportSuccess('Поддержка  успешно удалена')
+                    $('.delete-support-success').on('click', () => {
+                      supportTable.ajax.reload(null, false)
+                    });
+              },
+              406: function(result) {
+                    alertDeleteSupportError(result.responseJSON.error)
+              },
+              400: function(result) {
+                let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteSupportError(errorMessage);
+              },
+              403: function(result) {
+                let errorMessage = 'Ошибка HTTP_403_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteSupportError(errorMessage);
+              },
+              405: function(result) {
+                let errorMessage = 'Ошибка HTTP_405_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteSupportError(errorMessage);
+              }
+            },
+
+            error: function(e) {
+              console.log(e)
+              let error = '';
+              if(e.status){
+                error = 'Статус ошибки - ' + e.status;
+              }
+              alertDeleteSupportError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+            },
+            complete: function() {
+            }
+        });
+      })
     });
 
 </script>

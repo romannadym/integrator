@@ -42,6 +42,57 @@
     <!--end card-->
 </div>
 <script type="text/javascript">
+
+  function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          document.cookie.split(';').forEach(cookie => {
+              cookie = cookie.trim();
+              if (cookie.startsWith(name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.split('=')[1]);
+              }
+          });
+      }
+      return cookieValue;
+  }
+
+  function alertDeleteModelSuccess (text)
+  {
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Успех !</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-model-success',
+        cancelButtonText: 'Oк',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
+  function alertDeleteModelError(text){
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Упс...! Что то пошло не так!</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-model-error',
+        cancelButtonText: 'Закрыть',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
   let modelTable;
   function initializeModelTables(){
     modelTable = $('#modelTable').DataTable({
@@ -71,7 +122,7 @@
                            </button>
                            <ul class="dropdown-menu dropdown-menu-end" style="">
                                <li>
-                                   <a class="dropdown-item remove-item-btn" data-delete-model-id="${row.id}" href="#">
+                                   <a class="dropdown-item remove-model-btn" data-delete-model-id="${row.id}" href="#">
                                        <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
                                    </a>
                                </li>
@@ -114,8 +165,117 @@
   }
   document.addEventListener('DOMContentLoaded', function () {
 
-      initializeModelTables();
-    //  $('#showModalAddOrg').modal('show');
+        initializeModelTables();
+      //  $('#showModalAddOrg').modal('show');
+      $(document).on('click', '.remove-model-btn', function() {
+        let modelId = $(this).data('deleteModelId');
+      //  console.log(supportId)
+        $.ajax({
+            url: '/equipments/api/models/edit/'+ modelId,
+            method: 'DELETE',
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            dataType: 'json',
+            statusCode: {
+              200: function(result) {
+                  console.log(result)
+                    alertDeleteModelSuccess('Поддержка  успешно удалена')
+                    $('.delete-model-success').on('click', () => {
+                      modelTable.ajax.reload(null, false)
+                    });
+              },
+              406: function(result) {
+                    alertDeleteModelError(result.responseJSON.error)
+              },
+              400: function(result) {
+                let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteModelError(errorMessage);
+              },
+              403: function(result) {
+                let errorMessage = 'Ошибка HTTP_403_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteModelError(errorMessage);
+              },
+              405: function(result) {
+                let errorMessage = 'Ошибка HTTP_405_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteModelError(errorMessage);
+              }
+            },
+
+            error: function(e) {
+              console.log(e)
+              let error = '';
+              if(e.status){
+                error = 'Статус ошибки - ' + e.status;
+              }
+              alertDeleteModelError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+            },
+            complete: function() {
+            }
+        });
+      })
     });
 
 </script>

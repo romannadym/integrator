@@ -38,6 +38,57 @@
     <!--end card-->
 </div>
 <script type="text/javascript">
+
+  function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          document.cookie.split(';').forEach(cookie => {
+              cookie = cookie.trim();
+              if (cookie.startsWith(name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.split('=')[1]);
+              }
+          });
+      }
+      return cookieValue;
+  }
+
+  function alertDeleteVendorSuccess (text)
+  {
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Успех !</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-vendor-success',
+        cancelButtonText: 'Oк',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
+  function alertDeleteVendorError(text){
+    Swal.fire({
+        html: '<div class="mt-3">' +
+            '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+            '<div class="mt-4 pt-2 fs-15">' +
+            '<h4>Упс...! Что то пошло не так!</h4>' +
+            `<p class="text-muted mx-4 mb-0">${text}</p>` +
+            '</div>' +
+            '</div>',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonClass: 'btn btn-primary w-xs mb-1 delete-vendor-error',
+        cancelButtonText: 'Закрыть',
+        buttonsStyling: false,
+        showCloseButton: true
+    })
+  }
+
   let vendorTable;
   function initializeVendorTables(){
     vendorTable = $('#vendorTable').DataTable({
@@ -65,7 +116,7 @@
                            </button>
                            <ul class="dropdown-menu dropdown-menu-end" style="">
                                <li>
-                                   <a class="dropdown-item remove-item-btn" data-delete-vendor-id="${row.id}" href="#">
+                                   <a class="dropdown-item remove-vendor-btn" data-delete-vendor-id="${row.id}" href="#">
                                        <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
                                    </a>
                                </li>
@@ -108,8 +159,117 @@
   }
   document.addEventListener('DOMContentLoaded', function () {
 
-      initializeVendorTables();
-    //  $('#showModalAddOrg').modal('show');
+        initializeVendorTables();
+      //  $('#showModalAddOrg').modal('show');
+      $(document).on('click', '.remove-vendor-btn', function() {
+        let vendorId = $(this).data('deleteVendorId');
+      //  console.log(supportId)
+        $.ajax({
+            url: '/equipments/api/vendors/edit/'+ vendorId,
+            method: 'DELETE',
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            dataType: 'json',
+            statusCode: {
+              200: function(result) {
+                  console.log(result)
+                    alertDeleteVendorSuccess('Вендор  успешно удален')
+                    $('.delete-vendor-success').on('click', () => {
+                      vendorTable.ajax.reload(null, false)
+                    });
+              },
+              406: function(result) {
+                    alertDeleteVendorError(result.responseJSON.error)
+              },
+              400: function(result) {
+                let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteVendorError(errorMessage);
+              },
+              403: function(result) {
+                let errorMessage = 'Ошибка HTTP_403_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteVendorError(errorMessage);
+              },
+              405: function(result) {
+                let errorMessage = 'Ошибка HTTP_405_BAD_REQUEST!';
+                // Если есть JSON с ошибками
+                  if (result.responseJSON) {
+                      // Собираем все ошибки в один текст
+                      const errors = [];
+                      for (const field in result.responseJSON) {
+                          errors.push(...result.responseJSON[field]);
+                      }
+                      errorMessage = errors.join('<br>');
+                  }
+                  // Если нет JSON, но есть текст
+                  else if (result.responseText) {
+                      try {
+                          const json = JSON.parse(result.responseText);
+                          errorMessage = json.message || result.responseText;
+                      } catch {
+                          errorMessage = result.responseText;
+                      }
+                  }
+
+                  // Показываем ошибку пользователю
+                  alertDeleteVendorError(errorMessage);
+              }
+            },
+
+            error: function(e) {
+              console.log(e)
+              let error = '';
+              if(e.status){
+                error = 'Статус ошибки - ' + e.status;
+              }
+              alertDeleteVendorError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
+            },
+            complete: function() {
+            }
+        });
+      })
     });
 
 </script>
