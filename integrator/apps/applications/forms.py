@@ -45,27 +45,9 @@ class DocumentForm(forms.ModelForm):
 class ApplicationForm(forms.ModelForm):
     User = get_user_model()
 
-    # Подзапрос для выбора максимального id пользователя в каждой организации
-    max_user_subquery = User.objects.filter(
-        organization=OuterRef('organization')
-    ).order_by('-id').values('id')[:1]
-
-    client = ClientChoiceField(
-        label='Заказчик',
-        queryset=User.objects.filter(
-            Q(groups__name='Заказчик') & Q(is_active=True) & ~Q(email='serindework@mail.ru')
-        )
-        .annotate(
-            max_user_id=Subquery(max_user_subquery),
-            organization_name=F('organization__name')
-        )
-        .filter(id=F('max_user_id'))  # Оставляем только одного пользователя на организацию
-        .order_by('organization__name')
-    )
-
     class Meta:
         model = ApplicationModel
-        fields = ('priority', 'problem', 'contact', 'client', )
+        fields = ('priority', 'problem', 'contact', 'client')
         widgets = {
             'problem': forms.Textarea(attrs={'rows': '4'}),
         }
@@ -73,15 +55,42 @@ class ApplicationForm(forms.ModelForm):
     def __init__(self, user=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Установка приоритета по умолчанию
         from applications.models import AppPriorityModel
-        priority = AppPriorityModel.objects.get(id=3)
-        self.fields['priority'].initial = priority
+        self.fields['priority'].initial = AppPriorityModel.objects.get(id=3)
 
-        if user:
-            self.fields['client'].initial = user
-            self.fields['contact'].queryset = OrganizationContactModel.objects.filter(
-                Q(organization=user.organization) & ~Q(email='serindework@mail.ru')
+        # Подготовка подзапроса для максимального ID
+        max_user_subquery = self.User.objects.filter(
+            organization=OuterRef('organization')
+        ).order_by('-id').values('id')[:1]
+
+        # Настройка поля client
+        if user is not None:
+            # Если передан конкретный пользователь - выбираем только его
+            self.fields['client'].queryset = self.User.objects.filter(
+                Q(groups__name='Заказчик') &
+                Q(is_active=True) &
+                Q(id=user.id)  # Фильтр по конкретному ID пользователя
+            ).annotate(
+                organization_name=F('organization__name')
             )
+            self.fields['client'].initial = user
+            self.fields['client'].disabled = True  # Блокируем выбор для переданного пользователя
+        else:
+            # Если пользователь не передан - выбираем по максимальному ID
+            self.fields['client'].queryset = self.User.objects.filter(
+                Q(groups__name='Заказчик') &
+                Q(is_active=True) &
+                Q(id=Subquery(max_user_subquery))  # Фильтр по максимальному ID
+            ).annotate(
+                organization_name=F('organization__name')
+            ).order_by('organization__name')
+
+        # Настройка поля contact
+        if user and hasattr(user, 'organization'):
+            self.fields['contact'].queryset = OrganizationContactModel.objects.filter(
+                organization=user.organization
+            ).exclude(email='serindework@mail.ru')
 
 AppDocumentsFormset = inlineformset_factory(
     ApplicationModel, AppDocumentsModel,

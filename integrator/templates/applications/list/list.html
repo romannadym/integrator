@@ -224,7 +224,6 @@
                     d.status = $('#idStatus').val();
                     d.engineer = $('#engineer').val();
                     d.search = $('#search').val();
-                    console.log(d);
                 },
             },
 
@@ -334,7 +333,7 @@
                   render: function(data, type, row) {
                       // Создание ссылки на страницу деталей заявки с использованием id
                       let btnActions = ``;
-                      {% if permissions.is_admin %}
+                      {% if permissions.is_staff %}
                         btnActions = `<li><a class="dropdown-item edit-item-btn" href="#showModalEditTicket"
                                data-bs-toggle="modal"
                                data-edit-id="${data}"
@@ -405,7 +404,7 @@
                 })
             },
             error: function(e) {
-              console.log(e)
+            //  console.log(e)
             }
         });
 
@@ -422,7 +421,7 @@
                 })
             },
             error: function(e) {
-              console.log(e)
+            //  console.log(e)
             }
         });
         $('.mdi-logout').parent().on('click',function (e){

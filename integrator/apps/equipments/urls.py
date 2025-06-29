@@ -6,10 +6,10 @@ from equipments.views import ModelListView, AddModelView, EditModelView, DeleteM
 from equipments.views import EquipmentsListView, AddEquipmentView, EditEquipmentView, DeleteEquipmentView
 
 from equipments.api.api import EquipmentsListAPIView, EditEquipmentAPIView, EquipmentsDeleteAPIView
-from equipments.api.api import EquipmentTypesListAPIView, EditEquipmentTypeAPIView, EquipmentTypesDeleteAPIView, EquipmentTypesExcelAPIView
-from equipments.api.api import EquipmentVendorsListAPIView, EditEquipmentVendorAPIView, EquipmentVendorsDeleteAPIView, EquipmentVendorsExcelAPIView
-from equipments.api.api import EquipmentBrandsListAPIView, EditEquipmentBrandAPIView, EquipmentBrandsDeleteAPIView, EquipmentBrandsExcelAPIView
-from equipments.api.api import EquipmentModelsListAPIView, EditEquipmentModelAPIView, EquipmentModelsDeleteAPIView, EquipmentModelsExcelAPIView
+from equipments.api.api import EquipmentTypesListAPIView, EditEquipmentTypeAPIView, EquipmentTypesDeleteAPIView, EquipmentTypesExcelAPIView, EquipmentTypesListDataTableAPIView
+from equipments.api.api import EquipmentVendorsListAPIView, EditEquipmentVendorAPIView, EquipmentVendorsDeleteAPIView, EquipmentVendorsExcelAPIView, EquipmentVendorsListDataTableAPIView
+from equipments.api.api import EquipmentBrandsListAPIView, EditEquipmentBrandAPIView, EquipmentBrandsDeleteAPIView, EquipmentBrandsExcelAPIView, EquipmentBrandsListDataTableAPIView
+from equipments.api.api import EquipmentModelsListAPIView, EditEquipmentModelAPIView, EquipmentModelsDeleteAPIView, EquipmentModelsExcelAPIView, EquipmentModelsListDataTableAPIView
 
 urlpatterns = [
     path('types/', TypesListView, name = 'list-types'),
@@ -45,21 +45,25 @@ urlpatterns = [
     path('api/delete/', EquipmentsDeleteAPIView.as_view(), name = 'api-delete-equipments'),
 
     path('api/types/', EquipmentTypesListAPIView.as_view(), name = 'api-equipment-types'),
+    path('api/types/datatable/', EquipmentTypesListDataTableAPIView.as_view(), name = 'api-equipment-types'),
     path('api/types/edit/<int:type_id>', EditEquipmentTypeAPIView.as_view(), name = 'api-edit-equipment-types'),
     path('api/types/delete/', EquipmentTypesDeleteAPIView.as_view(), name = 'api-delete-equipment-types'),
     path('api/types/excel/', EquipmentTypesExcelAPIView.as_view(), name = 'api-excel-equipment-types'),
 
     path('api/vendors/', EquipmentVendorsListAPIView.as_view(), name = 'api-equipment-vendors'),
+    path('api/vendors/datatable/', EquipmentVendorsListDataTableAPIView.as_view(), name = 'api-equipment-vendors-datatable'),
     path('api/vendors/edit/<int:vendor_id>', EditEquipmentVendorAPIView.as_view(), name = 'api-edit-equipment-vendors'),
     path('api/vendors/delete/', EquipmentVendorsDeleteAPIView.as_view(), name = 'api-delete-equipment-vendors'),
     path('api/vendors/excel/', EquipmentVendorsExcelAPIView.as_view(), name = 'api-excel-equipment-vendors'),
 
     path('api/brands/', EquipmentBrandsListAPIView.as_view(), name = 'api-equipment-brands'),
+    path('api/brands/datatable/', EquipmentBrandsListDataTableAPIView.as_view(), name = 'api-equipment-brands-datatable'),
     path('api/brands/edit/<int:brand_id>', EditEquipmentBrandAPIView.as_view(), name = 'api-edit-equipment-brands'),
     path('api/brands/delete/', EquipmentBrandsDeleteAPIView.as_view(), name = 'api-delete-equipment-brands'),
     path('api/brands/excel/', EquipmentBrandsExcelAPIView.as_view(), name = 'api-excel-equipment-brands'),
 
     path('api/models/', EquipmentModelsListAPIView.as_view(), name = 'api-equipment-models'),
+    path('api/models/datatable/', EquipmentModelsListDataTableAPIView.as_view(), name = 'api-equipment-models-datatable'),
     path('api/models/edit/<int:model_id>', EditEquipmentModelAPIView.as_view(), name = 'api-edit-equipment-models'),
     path('api/models/delete/', EquipmentModelsDeleteAPIView.as_view(), name = 'api-delete-equipment-models'),
     path('api/models/excel/', EquipmentModelsExcelAPIView.as_view(), name = 'api-excel-equipment-models'),

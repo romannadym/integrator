@@ -61,7 +61,8 @@ def AddApplicationView(request): #Создание заявки
                         equipments[0]['conf'] += '<p><a target="_blank" href="' + settings.MEDIA_URL + doc.document.name + '">' + doc.filename + '</a></p>'
 
             return JsonResponse(list(equipments), safe = False)
-
+        #errors = form.errors.as_json()
+        print("Form errors:", request.POST)
         if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
             form = ApplicationForm(request.user, request.POST)
         else:
@@ -215,6 +216,7 @@ def AddApplicationView(request): #Создание заявки
 
             return JsonResponse({'message': 1})
         else:
+
             return JsonResponse({'error': 'Форма заявки не прошла валидацию'})
 
     if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
@@ -360,16 +362,36 @@ def SnEqView(request, sn): #Выбрать оборудование по сер�
 def GetContactsView(request): #Выбрать контакты для заявки
     if request.method == 'POST':
         from django.http import JsonResponse, HttpResponse
-
         User = get_user_model()
 
         client = request.POST.get('client')
-        if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
+        if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
             client = request.user.id
-        organization = User.objects.get(id = client)
 
-        contacts = ContactsListAPIView().get(request, organization.organization_id).data
-        return JsonResponse(list(contacts), safe = False)
+        organization = User.objects.get(id=client)
+
+        # Создаем копию GET параметров для APIView
+        get_params = request.GET.copy()
+
+        # Имитируем GET запрос для APIView
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+        factory = APIRequestFactory()
+        drf_request = factory.get('/fake-path/', get_params)
+        drf_request.user = request.user
+
+        # Получаем ответ от APIView
+        api_response = ContactsListAPIView().get(drf_request, organization.organization_id)
+
+        # Преобразуем Response в словарь
+        response_data = {
+            "draw": api_response.data.get("draw"),
+            "recordsTotal": api_response.data.get("recordsTotal"),
+            "recordsFiltered": api_response.data.get("recordsFiltered"),
+            "data": api_response.data.get("data")
+        }
+
+        return JsonResponse(response_data, safe=False)
 
 @login_required
 @require_POST

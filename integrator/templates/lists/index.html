@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Списки{% endblock title %}
+{% block page-title %}Списки{% endblock page-title %}
+{% block pagecss %}
+    <!--datatable css-->
+    <link rel="stylesheet" href="/static/assets/css/dataTables.bootstrap5.min.css" />
+    <!--datatable responsive css-->
+    <link rel="stylesheet" href="/static/assets/css/responsive.bootstrap.min.css" />
+
+    <link rel="stylesheet" href="/static/assets/css/buttons.dataTables.min.css">
+    <!-- dropzone css -->
+    <link rel="stylesheet" href="/static/assets/libs/dropzone/dropzone.css" type="text/css" />
+
+    <!-- Filepond css -->
+    <link rel="stylesheet" href="/static/assets/libs/filepond/filepond.min.css" type="text/css" />
+    <link rel="stylesheet" href="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.css">
+
+{% endblock %}
+
+{% block page-subtitle %}Списки{% endblock page-subtitle %}
+{% block menu-title %}Списки{% endblock menu-title %}
+{% block content %}
+  <div class="row">
+    {% include "lists/organization_list.html" %}
+    {% include "lists/support_list.html" %}
+    {% include "lists/type_list.html" %}
+
+    {% include "lists/vendor_list.html" %}
+    {% include "lists/model_list.html" %}
+    {% include "lists/brand_list.html" %}
+  </div>
+  {% include "organizations/modal_create_org.html" %}
+{% endblock content %}
+
+{% block pagescripts %}
+<script src="{% static 'assets/js/pages/plugins/jquery-3.6.0.min.js' %}"  crossorigin="anonymous"></script>
+    <!--datatable js-->
+    <script src="/static/assets/js/pages/plugins/jquery.dataTables.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.responsive.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/dataTables.buttons.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/buttons.print.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/buttons.html5.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/vfs_fonts.js"></script>
+    <script src="/static/assets/js/pages/plugins/jszip.min.js"></script>
+    <script src="/static/assets/js/pages/plugins/select2.min.js"></script>
+    <script src="/static/assets/libs/sweetalert2/sweetalert2.min.js"></script>
+    <!-- dropzone min -->
+    <script src="/static/assets/libs/dropzone/dropzone-min.js"></script>
+    <!-- filepond js -->
+    <script src="/static/assets/libs/filepond/filepond.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-image-preview/filepond-plugin-image-preview.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-file-validate-size/filepond-plugin-file-validate-size.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-image-exif-orientation/filepond-plugin-image-exif-orientation.min.js"></script>
+    <script src="/static/assets/libs/filepond-plugin-file-encode/filepond-plugin-file-encode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
+
+{% endblock %}

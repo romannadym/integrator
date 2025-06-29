@@ -44,7 +44,7 @@
 
                   <li class="nav-item {% if 'contracts' in request.path %}active{% endif %}">
                       <a class="nav-link menu-link {% if 'contracts' in request.path %}active{% endif %}" href="{% url 'list-contracts' %}">
-                          <i class="ri-honour-line"></i> <span data-key="t-contracts">Контракты</span>
+                          <i class="ri-file-list-line"></i><span data-key="t-contracts">Контракты</span>
                       </a>
                   </li>
                   <li class="nav-item {% if 'accounts' in request.path %}active{% endif %}">
@@ -54,10 +54,17 @@
                   </li>
                   <li class="nav-item {% if 'equipments' in request.path %}active{% endif %}">
                       <a class="nav-link menu-link {% if 'equipments' in request.path %}active{% endif %}" href="{% url 'list-equipments' %}">
-                          <i class="ri-honour-line"></i> <span data-key="t-equipments">Оборудование</span>
+                          <i class="ri-server-line"></i> <span data-key="t-equipments">Оборудование</span>
                       </a>
                   </li>
+
                   <li class="menu-title"><span data-key="t-settings">Настройки</span></li>
+
+                  <li class="nav-item {% if 'lists' in request.path %}active{% endif %}">
+                      <a class="nav-link menu-link {% if 'lists' in request.path %}active{% endif %}" href="{% url 'Lists' %}">
+                        <i class="ri-file-list-3-line"></i> <span data-key="t-equipments">Списки</span>
+                      </a>
+                  </li>
             </ul>
             {% endif %}
         </div>

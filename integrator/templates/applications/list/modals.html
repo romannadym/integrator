@@ -22,7 +22,7 @@
                       {% else %}
                         <div class="" style="display:none">
                           <select class="hidden" name="client" id="id_client" >
-                                <option value="{{ request.user.id }}" selected>---</option>
+                                <option value="{{ user.id }}" selected>---</option>
                           </select>
                         </div>
 
@@ -148,7 +148,6 @@
                   }
               },
               error: function(e) {
-                console.log(e)
                 let error = '';
                 if(e.status){
                   error = 'Статус ошибки - ' + e.status;
@@ -195,14 +194,14 @@
                   dataType: 'json',
                   success: function(result) {
                     $('#id_contact').empty()
-                      if(Array.isArray(result) && result.length > 0){
-                        result.forEach(function (item){
+                      if(Array.isArray(result.data) && result.data.length > 0){
+                        result.data.forEach(function (item){
                           $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
                         })
-                        $('#id_contact').val(result[0].id)
+                        $('#id_contact').val(result.data[0].id)
 
                       }
-                      console.log(client_id)
+                    //  console.log(result)
                       EquipmentList(client_id)
                   }
               });
@@ -222,14 +221,15 @@
               dataType: 'json',
               success: function(result) {
                 $('#id_contact').empty()
-                  if(Array.isArray(result) && result.length > 0){
-                    result.forEach(function (item){
+
+                  if(Array.isArray(result.data) && result.data.length > 0){
+                    result.data.forEach(function (item){
                       $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
                     })
-                    $('#id_contact').val(result[0].id)
+                    $('#id_contact').val(result.data[0].id)
 
                   }
-                  console.log(client_id)
+
                   EquipmentList(client_id)
               }
           });

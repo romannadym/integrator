@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from integrator.apps.functions import is_admin_or_engineer
 @login_required(login_url='/user_login/')  # Замените на правильный URL для вашей страницы входа
 def IndexView(request): #Главная страница
     if request.user.is_authenticated:
@@ -19,6 +20,14 @@ def ServicesView(request): #Услуги
     context = {'services': services, 'show': request.user.groups.filter(name = 'Администратор').exists() or request.user.groups.filter(name = 'Инженер').exists(), 'admin': request.user.groups.filter(name = 'Администратор').exists()}
 
     return render(request, 'main/services.html', context)
+
+def GetListView(request): #Услуги
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
+    return render(request, 'lists/index.html', {'permissions': permissions})
 
 def GetInTouchView(request): #Контакты
     from contacts.models import ContactModel

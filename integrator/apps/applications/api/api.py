@@ -1048,29 +1048,29 @@ class AddApplicationAPIView(APIView): #Создание заявки
 
         data = {'priorities': priorities, 'permissions': permissions}
 
-        if permissions['is_staff']:
-            clients = User.objects.filter(groups__name = 'Заказчик')\
-                .annotate(organization_name = F('organization__name'),
-                    name = Case(
-                        When(
-                            Q(last_name__isnull = False) & ~Q(last_name = ''),
-                            then = Concat('first_name', Value(' '), 'last_name')
-                        ),
-                        When(last_name = '', then = F('email')),
-                        default = Value(''), output_field = CharField())
-                    )\
-                .values('id', 'organization_name', 'name')
-            #убираем дубли по     organization_name
-            seen = set()
-            unique_clients = []
+        #if permissions['is_staff']:
+        clients = User.objects.filter(groups__name = 'Заказчик')\
+            .annotate(organization_name = F('organization__name'),
+                name = Case(
+                    When(
+                        Q(last_name__isnull = False) & ~Q(last_name = ''),
+                        then = Concat('first_name', Value(' '), 'last_name')
+                    ),
+                    When(last_name = '', then = F('email')),
+                    default = Value(''), output_field = CharField())
+                )\
+            .values('id', 'organization_name', 'name')
+        #убираем дубли по     organization_name
+        seen = set()
+        unique_clients = []
 
-            for client in clients:
-                org_name = client['organization_name']
-                if org_name not in seen:
-                    seen.add(org_name)
-                    unique_clients.append(client)
+        for client in clients:
+            org_name = client['organization_name']
+            if org_name not in seen:
+                seen.add(org_name)
+                unique_clients.append(client)
 
-            data['clients'] = unique_clients
+        data['clients'] = unique_clients
 
         return Response(data, status = status.HTTP_200_OK)
 
@@ -1232,14 +1232,20 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         serializer = ApplicationDetailsSerializer(application)
         if permissions['is_staff']:
             history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
-        else:
-            history_sorted = ApplicationCommentsAPIView().get(request = request, application_id = application_id).data
-        if permissions['is_staff']:
             history_sorted = sorted(history, key=lambda x: x['pubdate'])
+        else:
+            # Для обычных пользователей извлекаем комментарии из ответа
+            comments_response = ApplicationCommentsAPIView().get(request=request, application_id=application_id).data
+            history = list(comments_response['comments'])  # Преобразуем QuerySet в список
+            print("Sample content:", history)
+            history_sorted = {}
+            history_sorted['comments'] = sorted(history, key=lambda x: x['formatted_date'])
+        #if permissions['is_staff']:
+
         #else:
             #history_sorted = sorted(history, key=lambda x: x['pubdate'])
-        print("History data type:", type(history_sorted))
-        print("Sample content:", history_sorted)  # Первые 3 элемента
+        #print("History data type:", type(history_sorted))
+        #print("Sample content:", history_sorted)  # Первые 3 элемента
         spares = SparesListAPIView.as_view()(request._request).data
         Statuses = AppStatusSerializer(StatusModel.objects.all(), many=True).data
         Priority = AppPrioritySerializer(AppPriorityModel.objects.all(), many=True).data

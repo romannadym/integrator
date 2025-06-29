@@ -5,7 +5,7 @@ from accounts.views import OrganizationListView, AddOrganizationView, EditOrgani
 from accounts.views import ContactsListView, AddContactView, EditContactView
 
 from accounts.api.api import ContactsListAPIView, ContactAPIView
-from accounts.api.api import OrganizationsListAPIView, EditOrganizationAPIView, OrganizationsDeleteAPIView
+from accounts.api.api import OrganizationsListAPIView, EditOrganizationAPIView, OrganizationsDeleteAPIView, OrganizationsListDataTableAPIView
 from accounts.api.api import UsersListAPIView, EditUserAPIView, UsersDeleteAPIView
 from accounts.api.api import GroupsListAPIView, PermissionsListGroupAPIView, GroupsListUserAPIView, EditGroupAPIView, GroupsDeleteAPIView
 from accounts.api.api import PermissionsListAPIView
@@ -22,6 +22,7 @@ urlpatterns = [
     path('groups/delete/<int:group_id>', DeleteGroupView, name = 'delete-group'),
 
     path('organizations/', OrganizationListView, name = 'list-organization'),
+
     path('organizations/add/', AddOrganizationView, name = 'add-organization'),
     path('organizations/edit/<int:organization_id>', EditOrganizationView, name = 'edit-organization'),
     path('organizations/delete/<int:organization_id>', DeleteOrganizationView, name = 'delete-organization'),
@@ -34,6 +35,7 @@ urlpatterns = [
     path('api/contacts/<int:contact_id>', ContactAPIView.as_view(), name = 'api-edit-contacts'),
 
     path('api/organizations/', OrganizationsListAPIView.as_view(), name = 'api-organizations'),
+    path('api/organizations/datatable/', OrganizationsListDataTableAPIView.as_view(), name = 'list-organization-datatable'),
     path('api/organizations/edit/<int:organization_id>', EditOrganizationAPIView.as_view(), name = 'api-edit-organizations'),
     path('api/organizations/delete/', OrganizationsDeleteAPIView.as_view(), name = 'api-delete-organizations'),
 

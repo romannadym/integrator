@@ -1,5 +1,5 @@
 from django.urls import path
-from main.views import IndexView, ServicesView, GetInTouchView, NotificationsView#, CaptchaView
+from main.views import IndexView, ServicesView, GetInTouchView, NotificationsView, GetListView#, CaptchaView
 
 urlpatterns = [
     path('', IndexView, name = 'home'),
@@ -7,4 +7,5 @@ urlpatterns = [
     path('contacts/', GetInTouchView, name = 'contacts'),
     #path('captcha/', CaptchaView, name = 'captcha'),
     path('notifications/', NotificationsView),
+    path('lists/', GetListView, name = 'Lists'),
 ]

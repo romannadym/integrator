@@ -2,7 +2,7 @@ from django.urls import path
 from contracts.views import SupportLevelsListView, AddSupportLevelView, EditSupportLevelView, DeleteSupportLevelView
 from contracts.views import ContractsListView, AddContractView, EditContractView, DeleteContractView
 
-from contracts.api.api import SupportLevelsListAPIView, SupportLevelEditAPIView
+from contracts.api.api import SupportLevelsListAPIView, SupportLevelEditAPIView, SupportLevelsListDataTableAPIView
 from contracts.api.api import ContractsListAPIView, ContractsEditAPIView, ContractsDeleteAPIView, EqContractsEditAPIView
 
 urlpatterns = [
@@ -17,6 +17,7 @@ urlpatterns = [
     path('delete_contract/<int:contract_id>', DeleteContractView, name = 'delete-contract'),
 
     path('api/levels/', SupportLevelsListAPIView.as_view(), name = 'list-levels-api'),
+    path('api/levels/datatable/', SupportLevelsListDataTableAPIView.as_view(), name = 'list-levels-datatable-api'),
     path('api/levels/<int:level_id>', SupportLevelEditAPIView.as_view(), name = 'edit-level-api'),
 
     path('api/contracts/', ContractsListAPIView.as_view(), name = 'list-contracts-api'),

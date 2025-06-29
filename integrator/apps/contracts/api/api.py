@@ -14,6 +14,93 @@ from contracts.api.serializers import *
 
 from contracts.models import SupportLevelModel, ContractModel, ContractEquipmentModel
 
+@extend_schema(tags=['Уровни поддержки с пагинацией (Done)'])
+class SupportLevelsListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+    parser_classes = [JSONParser]
+
+    @extend_schema(
+        summary='Список уровней поддержки (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор уровня поддержки</li>
+            <li>"priority" - Приоритет отображения уровня</li>
+            <li>"name" - Наименование уровня поддержки</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=SupportLevelSerializer(many=True)
+            )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Получаем параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Получаем параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок (соответствие полям модели)
+        column_mapping = {
+            '0': 'id',       # Первая колонка - id
+            '1': 'priority', # Вторая колонка - priority
+            '2': 'name'      # Третья колонка - name
+        }
+
+        # Получаем поле для сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+
+        # Применяем направление сортировки
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос
+        queryset = SupportLevelModel.objects.all().order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value) |
+                Q(priority__icontains=search_value)
+            )
+
+        # Получаем общее количество записей (до фильтрации)
+        records_total = SupportLevelModel.objects.count()
+
+        # Получаем количество записей после фильтрации
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализуем данные
+        serializer = SupportLevelSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 @extend_schema(
     tags = ['Уровни поддержки (Done)']
 )
@@ -253,7 +340,7 @@ class EqContractsEditAPIView(APIView):
         draw = int(request.query_params.get('draw', 1))
         start = int(request.query_params.get('start', 0))
         length = int(request.query_params.get('length', 10))
-        search_value = request.query_params.get('search[value]', '')
+        search_value = request.query_params.get('search[value]', '').strip()
 
         # Получаем список оборудования
         eqcontracts = contract.eqcontracts.all()
@@ -262,9 +349,9 @@ class EqContractsEditAPIView(APIView):
         if search_value:
             eqcontracts = eqcontracts.filter(
                 Q(sn__icontains=search_value) |
-                Q(equipment__name__icontains=search_value) |
-                Q(support__name__icontains=search_value)
-                )
+                Q(equipment__name__icontains=search_value) |  # Правильный синтаксис для ForeignKey
+                Q(support_level__name__icontains=search_value)  # Предполагаемое имя поля связи
+            )
 
         # Применяем сортировку (если параметры указаны)
         order_column = request.query_params.get('order[0][column]')

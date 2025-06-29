@@ -173,6 +173,89 @@ def GetEquipment(equipment_id):
     except:
         return Response({'error': 'Объект не найден'}, status = status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(tags=['Типы оборудования с пагинацией (Done)'])
+class EquipmentTypesListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+
+    @extend_schema(
+        summary='Список типов оборудования (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор типа оборудования</li>
+            <li>"name" - Наименование типа оборудования</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=EquipmentTypesSerializer(many=True)
+                )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Получаем параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Получаем параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок
+        column_mapping = {
+            '0': 'id',    # Первая колонка - id
+            '1': 'name'   # Вторая колонка - name
+        }
+
+        # Получаем поле для сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+
+        # Применяем направление сортировки
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос
+        queryset = TypeModel.objects.all().order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value)
+            )
+
+        # Получаем общее количество записей (до фильтрации)
+        records_total = TypeModel.objects.count()
+
+        # Получаем количество записей после фильтрации
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализуем данные
+        serializer = EquipmentTypesSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 @extend_schema(
     tags = ['Типы оборудования (Done)'],
@@ -340,6 +423,89 @@ def GetEquipmentType(type_id):
     except:
         return Response({'error': 'Объект не найден'}, status = status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(tags=['Вендоры оборудования с пагинацией (Done)'])
+class EquipmentVendorsListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+
+    @extend_schema(
+        summary='Список вендоров оборудования (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор вендора оборудования</li>
+            <li>"name" - Наименование вендора оборудования</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=EquipmentVendorsSerializer(many=True)
+            )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Получаем параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Получаем параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок
+        column_mapping = {
+            '0': 'id',    # Первая колонка - id
+            '1': 'name'  # Вторая колонка - name
+        }
+
+        # Получаем поле для сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+
+        # Применяем направление сортировки
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос
+        queryset = VendorModel.objects.all().order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value)
+            )
+
+        # Получаем общее количество записей (до фильтрации)
+        records_total = VendorModel.objects.count()
+
+        # Получаем количество записей после фильтрации
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализуем данные
+        serializer = EquipmentVendorsSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 @extend_schema(
     tags = ['Вендоры оборудования (Done)'],
@@ -509,6 +675,85 @@ def GetEquipmentVendor(vendor_id):
     except:
         return Response({'error': 'Объект не найден'}, status = status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(tags=['Бренды оборудования с пагинацией (Done)'])
+class EquipmentBrandsListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+
+    @extend_schema(
+        summary='Список брендов оборудования (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор бренда оборудования</li>
+            <li>"name" - Наименование бренда оборудования</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=EquipmentBrandsSerializer(many=True)
+                )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Параметры DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок
+        column_mapping = {
+            '0': 'id',    # Первая колонка - id
+            '1': 'name'   # Вторая колонка - name
+        }
+
+        # Определение сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос
+        queryset = BrandModel.objects.all().order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value)
+            )
+
+        # Получаем количество записей
+        records_total = BrandModel.objects.count()
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализация данных
+        serializer = EquipmentBrandsSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 @extend_schema(
     tags = ['Бренды оборудования (Done)'],
@@ -678,6 +923,109 @@ def GetEquipmentBrand(brand_id):
     except:
         return Response({'error': 'Объект не найден'}, status = status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(tags=['Модели оборудования с пагинацией (Done)'])
+class EquipmentModelsListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+
+    @extend_schema(
+        summary='Список моделей оборудования (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор модели оборудования</li>
+            <li>"name" - Наименование модели оборудования</li>
+            <li>"brand_name" - Наименование бренда</li>
+            <li>"vendor_name" - Наименование вендора</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        <p>Дополнительные фильтры:</p>
+        <ul>
+            <li>brand_id - фильтр по ID бренда</li>
+            <li>vendor_id - фильтр по ID вендора</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=EquipmentModelsSerializer(many=True)
+                )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Параметры DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Дополнительные фильтры
+        brand_id = request.GET.get('brand_id')
+        vendor_id = request.GET.get('vendor_id')
+
+        # Маппинг колонок
+        column_mapping = {
+            '0': 'id',
+            '1': 'name',
+            '2': 'brand__name',
+            '3': 'vendor__name'
+        }
+
+        # Определение сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос с аннотациями
+        queryset = ModelModel.objects.all().annotate(
+            vendor_name=F('vendor__name'),
+            brand_name=F('brand__name')
+        ).order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value) |
+                Q(brand__name__icontains=search_value) |
+                Q(vendor__name__icontains=search_value)
+            )
+
+        # Дополнительная фильтрация
+        if brand_id:
+            queryset = queryset.filter(brand_id=brand_id)
+        if vendor_id:
+            queryset = queryset.filter(vendor_id=vendor_id)
+
+        # Получаем количество записей
+        records_total = ModelModel.objects.count()
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализация данных
+        serializer = EquipmentModelsSerializer(queryset, many=True)
+
+        # Формируем ответ
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 @extend_schema(
     tags = ['Модели оборудования (Done)'],

@@ -97,7 +97,6 @@ $(document).ready(function () {
        const itemProblem = button.data('editProblem')
        const itemOrganizationUserId = button.data('editOrganizationUserId')
        const modal = $(this);
-       console.log(itemEquipmentName)
           // Если хочешь вставить ID в заголовок или текст:
           modal.find('h5').text(`Редактирование заявки #${itemId}`);
           modal.find('#problem_field_edit').val(itemProblem);
@@ -134,7 +133,6 @@ $(document).ready(function () {
           if (itemEngineerId) {
               data.engineer = itemEngineerId; // добавляем engineer, если есть значение
           }
-          console.log(data)
           updateApplication(itemId, data, modal,submitButton, ticketTable, originalText)
         })
 
@@ -173,7 +171,6 @@ $(document).ready(function () {
     }
 
     function updateApplication(itemId, data, modal,submitButton, ticketTable, originalText) {
-        console.log(data)
         $.ajax({
             url: `/applications/api/edit/${itemId}`,
             method: 'PUT',

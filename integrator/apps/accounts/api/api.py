@@ -181,10 +181,94 @@ def GetContact(contact_id):
     except:
         raise APIException('Контакт с id = ' + str(contact_id) + ' не найден')
 
+@extend_schema(tags = ['Организации DataTable (Done)'])
+class OrganizationsListDataTableAPIView(APIView):
+    permission_classes = [IsAdminUser,]
+    parser_classes = [JSONParser, NestedMultipartParser]
+
+    @extend_schema(
+        summary='Список организаций (DataTables)',
+        description='''
+        <ol>
+            <li>"id" - Идентификатор организации</li>
+            <li>"name" - Наименование организации</li>
+        </ol>
+        <p>Поддерживает параметры запроса DataTables:</p>
+        <ul>
+            <li>draw - счетчик запросов</li>
+            <li>start - начальная позиция</li>
+            <li>length - количество записей на странице</li>
+            <li>search[value] - строка поиска</li>
+            <li>order[0][column] - индекс сортируемой колонки</li>
+            <li>order[0][dir] - направление сортировки (asc/desc)</li>
+        </ul>
+        ''',
+        responses={
+            200: OpenApiResponse(
+                description='Ответ в формате DataTables',
+                response=OrganizationsSerializer(many=True)
+                )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        # Получаем параметры от DataTables
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        search_value = request.GET.get('search[value]', '').strip()
+
+        # Получаем параметры сортировки
+        order_column_index = request.GET.get('order[0][column]', '0')
+        order_direction = request.GET.get('order[0][dir]', 'asc')
+
+        # Маппинг колонок (укажите соответствующие поля вашей модели)
+        column_mapping = {
+            '0': 'id',  # Первая колонка - id
+            '1': 'name'  # Вторая колонка - name
+        }
+
+        # Получаем поле для сортировки
+        order_field = column_mapping.get(order_column_index, 'id')
+
+        # Применяем направление сортировки
+        if order_direction == 'desc':
+            order_field = f'-{order_field}'
+
+        # Базовый запрос
+        queryset = OrganizationModel.objects.all().order_by(order_field)
+
+        # Применяем поиск
+        if search_value:
+            queryset = queryset.filter(
+                Q(name__icontains=search_value) |
+                Q(id__icontains=search_value)
+                )
+        # Получаем общее количество записей (до фильтрации)
+        records_total = OrganizationModel.objects.count()
+
+        # Получаем количество записей после фильтрации
+        records_filtered = queryset.count()
+
+        # Применяем пагинацию
+        queryset = queryset[start:start + length]
+
+        # Сериализуем данные
+        serializer = OrganizationsSerializer(queryset, many=True)
+
+        # Формируем ответ в формате DataTables
+        response_data = {
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 #Список организаций
 @extend_schema(
     tags = ['Организации (Done)'],
 )
+
 class OrganizationsListAPIView(APIView):
     permission_classes = [IsAdminUser,]
     parser_classes = [JSONParser, NestedMultipartParser]
