@@ -9,13 +9,11 @@
 
 # Исключаем конкретные файлы и папки
 integrator/settings.py
-integrator/templates/base.html
 static/css/base.css
 integrator/__pycache__/
 integrator/apps/**/__pycache__/
 integrator/apps/**/**/__pycache__/
 integrator_env/
 media/
-static/ckeditor/*
 requirements.txt
 celerybeat-schedule
