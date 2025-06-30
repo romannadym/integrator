@@ -29,12 +29,13 @@ def ArticleListView(request):
             # Настройка лимитов (адаптировано под DataTables)
             client.SetLimits(start, length, max(1000, start + length + 100))
 
-            # Поисковый запрос (как в рабочем коде)
-            search = search_value if search_value else 'a'  # 'a' как дефолт в рабочем коде
-            search = search.replace('$', '').replace('/', '')
-
-            # Выполнение запроса
-            rows = client.Query(search)
+            if search_value:
+                search = search_value.replace('$', '').replace('/', '')
+                client.SetMatchMode(sphinxapi.SPH_MATCH_PHRASE)
+                rows = client.Query(search)
+            else:
+                # Для пустого поиска получаем все записи
+                rows = {'total_found': ArticleModel.objects.count(), 'matches': [{'id': a.id} for a in ArticleModel.objects.all()[start:start+length]]}
             # Формирование ответа в формате DataTables
             response = {
                 'draw': draw,
