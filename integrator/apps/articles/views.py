@@ -1,114 +1,97 @@
 from django.shortcuts import render, redirect
 from articles.models import ArticleModel
+from integrator.apps.functions import is_admin_or_engineer
 
 def ArticleListView(request):
-    if not request.user.has_perm('articles.view_articlemodel') or request.user.groups.filter(name = 'Без БЗ').exists():
+    # Проверка прав доступа
+    if not request.user.has_perm('articles.view_articlemodel') or request.user.groups.filter(name='Без БЗ').exists():
         return redirect('login')
 
-    import sphinxapi
-    import math
-    from django.forms.models import model_to_dict
-
-    client = sphinxapi.SphinxClient()
-    client.SetServer('sphinx', 9312)
-
-    items = 50
-    search = 'a'
-
-    pagination = {
-        'page': 1,
-        'total': 0,
-        'num_pages': 0,
-        'number': 0
-    }
-    if request.method == 'POST':
+    # Обработка AJAX-запросов DataTables
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         from django.http import JsonResponse
-        pagination['page'] = int(request.POST.get('page'))
+        import sphinxapi
+        import math
 
-        if request.POST.get('search'):
-            search = request.POST.get('search').replace('$', '').replace('/', '')
+        try:
+            # Параметры от DataTables
+            draw = int(request.GET.get('draw', 1))
+            start = int(request.GET.get('start', 0))
+            length = int(request.GET.get('length', 50))  # items = 50 из старого кода
+            search_value = request.GET.get('search[value]', '').strip()
 
-    # sphinx = "SELECT * FROM articles_articlemodel WHERE id"
-    #
-    # sql = 'SELECT id, title FROM integrator.articles_articlemodel WHERE id'
-    # if direction:
-    #     sql = sql + ' >= '
-    #     sphinx = sphinx + " >= "
-    # else:
-    #     sql = sql + ' <= '
-    #     sphinx = sphinx + " <= "
-    #
-    # sql = sql + str(to_elm)
-    # sphinx = sphinx + str(to_elm)
-    #
-    #
-    #     if search:
-    #         sql = sql + ' AND MATCH (title, number, header, summary, text, products) AGAINST ("' + search + '" IN NATURAL LANGUAGE MODE)'
-    #         sphinx = sphinx + " AND MATCH ('" + search + "')"
-    #         # sphinx = sphinx + ' AND (title = "' + search + '" OR text = "' + search + '" OR number = "' + search + '" OR header = "' + search + '" OR summary = "' + search + '" OR products = "' + search + '")'
-    #
-    # sql = sql + ' ORDER BY id'
-    # sphinx = sphinx + " ORDER BY id"
-    # if not direction:
-    #     sql = sql + ' DESC'
-    #     sphinx = sphinx + ' DESC'
-    #
-    # sql = sql + ' limit ' + str(items)
-    # sphinx = sphinx + " limit " + str(items)
+            # Инициализация клиента Sphinx (как в рабочем коде)
+            client = sphinxapi.SphinxClient()
+            client.SetServer('sphinx', 9312)  # Как в рабочем коде
+            client.SetRetries(1)
+            client.SetMatchMode(sphinxapi.SPH_MATCH_PHRASE)  # Как в рабочем коде
 
-    from django.http import HttpResponse
-    client.SetRetries(1);
-    client.SetMatchMode(sphinxapi.SPH_MATCH_PHRASE);
-    client.SetLimits((pagination['page'] - 1) * items, items, max(1000, (pagination['page'] * items) + 100));
-    # client.SetLimits((20 - 1) * items, items);
-    rows = client.Query(search)
-    # return HttpResponse(str(rows))
-    indexes = [elm['id'] for elm in rows['matches']]
-    pagination['total'] = rows['total_found']
-    pagination['num_pages'] = math.ceil(rows['total_found'] / items);
-    pagination['range'] = list(range(1, pagination['num_pages'] + 1))
-    pagination['number'] = (pagination['page'] - 1) * items
+            # Настройка лимитов (адаптировано под DataTables)
+            client.SetLimits(start, length, max(1000, start + length + 100))
+
+            # Поисковый запрос (как в рабочем коде)
+            search = search_value if search_value else 'a'  # 'a' как дефолт в рабочем коде
+            search = search.replace('$', '').replace('/', '')
+
+            # Выполнение запроса
+            rows = client.Query(search)
+            # Формирование ответа в формате DataTables
+            response = {
+                'draw': draw,
+                'recordsTotal': ArticleModel.objects.count(),  # Общее количество записей
+                'recordsFiltered': rows['total_found'] if rows else 0,  # Количество найденных
+                'data': []
+            }
+
+            if rows and 'matches' in rows:
+                indexes = [item['id'] for item in rows['matches']]
+                articles = ArticleModel.objects.filter(id__in=indexes)
+
+                # Формируем данные как в рабочем коде
+                response['data'] = [{
+                    'id': item.id,
+                    'title': item.title,
+                    'number': item.number,
+                    'header': item.header,
+                    'summary': item.summary,
+                    'text': item.text,
+                    'products': item.products
+                    # Добавьте другие поля по необходимости
+                } for item in articles]
+
+            return JsonResponse(response)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'draw': draw,
+                'recordsTotal': 0,
+                'recordsFiltered': 0,
+                'data': [],
+                'error': str(e)
+            }, status=500)
+
+    # Обычный GET-запрос (первая загрузка страницы)
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
+
+    return render(request, 'articles/list.html', {'permissions': permissions})
 
 
-
-    # if not direction:
-    #     sql = 'SELECT * FROM integrator.articles_articlemodel t1, (' + sql + ') subquery WHERE subquery.id = t1.id ORDER BY t1.id'
-    #
-    # articles = ArticleModel.objects.raw(sql)
-
-    articles = ArticleModel.objects.filter(id__in = indexes)
-    result = [model_to_dict(item) for item in articles]
-
-
-    # if result[0]['id'] == to_elm:
-    #     result.pop(0)
-    #     pagination['prev_id'] = result[0]['id']
-    # elif result[-1]['id'] == to_elm:
-    #     result.pop()
-    #     pagination['next_id'] = result[-1]['id']
-    # else:
-    #     result.pop()
-    #
-    # if len(result) == (items - 1):
-    #     if direction:
-    #         result.pop()
-    #         pagination['next_id'] = result[-1]['id']
-    #     else:
-    #         result.pop(0)
-    #         pagination['prev_id'] = result[0]['id']
-
-    if request.method == 'POST':
-        return JsonResponse({'data': result,
-            'pagination': pagination,
-        }, safe = False)
-
-    context = {'list': result, 'pagination': pagination}
-    return render(request, 'articles/list.html', context)
 
 def ArticleDetailView(request, pk):
+    permissions = {
+        'is_admin': request.user.groups.filter(name='Администратор').exists(),
+        'is_engineer': request.user.groups.filter(name='Инженер').exists(),
+        'is_staff': is_admin_or_engineer(request.user)
+    }
     if not request.user.has_perm('articles.view_articlemodel') or request.user.groups.filter(name = 'Без БЗ').exists():
         return redirect('login')
 
     article = ArticleModel.objects.get(pk = pk)
-    context = {'article': article}
+    context = {'article': article, 'permissions': permissions}
     return render(request, 'articles/detail.html', context)

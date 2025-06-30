@@ -67,6 +67,16 @@
                   </li>
             </ul>
             {% endif %}
+            {% if permissions.is_staff %}
+            <ul class="navbar-nav" id="navbar-nav">
+                <li class="menu-title"><span data-key="t-menu">База знаний</span></li>
+                <li class="nav-item {% if 'articles' in request.path %}active{% endif %}">
+                  <a href="{% url 'articles' %}" class="nav-link menu-link {% if 'articles' in request.path %}active{% endif %}" data-key="t-articles-view">
+                  <i class="ri-article-line"></i> <span data-key="t-articles">Статьи </span></a>
+                </li>
+
+            </ul>
+            {% endif %}
         </div>
         <!-- Sidebar -->
     </div>
