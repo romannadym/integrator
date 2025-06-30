@@ -10,7 +10,7 @@ def ArticleListView(request):
     from django.forms.models import model_to_dict
 
     client = sphinxapi.SphinxClient()
-    client.SetServer('127.0.0.1', 9312)
+    client.SetServer('sphinx', 9312)
 
     items = 50
     search = 'a'

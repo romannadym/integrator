@@ -67,7 +67,10 @@
 </div>
 <script type="text/javascript">
   $(document).ready(function() {
-    $('#t-equipments').select2();
+    $('#t-equipments').select2({
+      dropdownParent: $('#showModalEditTicket'),
+      placeholder: "-------"
+    });
     $('#t-status').select2();
     $('#t-priority').select2();
     $('#t-engineer').select2();
