@@ -1386,7 +1386,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'id': application.id,
             'url': request.build_absolute_uri(application.get_absolute_url()),
             'status': status.name,
-            'type': 'status'
+            'type': 'edit'
         }
 
         # Отправка контактному лицу
