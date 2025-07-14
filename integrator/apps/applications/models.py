@@ -113,7 +113,7 @@ class ApplicationModel(models.Model):
         return str(self.id)
 
     def get_absolute_url(self):
-        return reverse('app-details', kwargs = {'application_id': int(self.pk)})
+        return reverse('edit-application', kwargs = {'application_id': int(self.pk)})
 
     class Meta:
         verbose_name = 'Заявка'
@@ -393,7 +393,7 @@ class ApplicationArchiveModel(models.Model):
         return str(self.old_id)
 
     def get_absolute_url(self):
-        return reverse('app-details', kwargs = {'application_id': int(self.pk)})
+        return reverse('edit-application', kwargs = {'application_id': int(self.pk)})
 
     class Meta:
         verbose_name = 'Заявка'
