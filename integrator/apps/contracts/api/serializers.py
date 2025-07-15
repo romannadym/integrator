@@ -122,3 +122,10 @@ class EquipmentCreateSerializer(serializers.ModelSerializer):
             'support': {'required': True},
             'contract': {'required': True}  # Убедитесь, что contract обязателен
         }
+class EquipmentUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContractEquipmentModel  # Или ваша модель оборудования
+        fields = ['support']  # Только поле для уровня поддержки
+        extra_kwargs = {
+            'support': {'required': True}
+        }

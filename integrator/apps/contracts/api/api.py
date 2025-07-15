@@ -455,6 +455,53 @@ class EqContractsEditAPIView(APIView):
         )
 
     @extend_schema(
+    summary='Изменить уровень поддержки оборудования',
+    description='Обновляет уровень поддержки для оборудования в договоре',
+    request=EquipmentUpdateSerializer,  # Новый сериализатор для обновления
+    responses={
+            200: OpenApiResponse(description='Уровень поддержки успешно изменен', response=EquipmentSerializer()),
+            400: OpenApiResponse(description='Неверные данные'),
+            404: OpenApiResponse(description='Договор или оборудование не найдены')
+        }
+    )
+    def put(self, request, contract_id, equipment_id, *args, **kwargs):
+        try:
+            # 1. Проверяем существование договора
+            contract = ContractModel.objects.get(pk=contract_id)
+
+            # 2. Получаем оборудование, связанное с этим договором
+            equipment = contract.eqcontracts.get(pk=equipment_id)
+
+            # 3. Проверяем данные запроса
+            serializer = EquipmentUpdateSerializer(instance=equipment, data=request.data, partial=True)
+            if not serializer.is_valid():
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 4. Обновляем только уровень поддержки
+            updated_equipment = serializer.save()
+
+            # 5. Возвращаем обновленные данные
+            response_serializer = EquipmentSerializer(updated_equipment)
+            return Response(
+                response_serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        except ContractModel.DoesNotExist:
+            return Response(
+                {'error': 'Договор не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ContractEquipmentModel.DoesNotExist:
+            return Response(
+                {'error': 'Оборудование не найдено в указанном договоре'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @extend_schema(
         summary='Удалить оборудование из договора',
         description='Удаляет оборудование с указанным ID из договора',
         parameters=[

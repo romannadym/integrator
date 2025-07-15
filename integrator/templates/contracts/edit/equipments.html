@@ -23,8 +23,9 @@
       </tr>
     </tbody>
 </table>
-
+{% include "contracts/edit/modal_edit_eq.html" %}
 <script type="text/javascript">
+  let contractEquipmentsTable;
   $(document).ready(function () {
     function getCookie(name) {
         let cookieValue = null;
@@ -41,7 +42,7 @@
 
     var path = window.location.pathname;
     var contractId = path.split('/').pop();
-    let contractEquipmentsTable = $('#contractEquipmentsTable').DataTable({
+    contractEquipmentsTable = $('#contractEquipmentsTable').DataTable({
        processing: true,
        serverSide: true,
        searching: false,
@@ -75,6 +76,13 @@
                                  <i class="ri-more-fill align-middle"></i>
                              </button>
                              <ul class="dropdown-menu dropdown-menu-end" style="">
+                                 <li><a class="dropdown-item edit-item-btn" href="#showModalEditEquipment"data-bs-toggle="modal"
+                                         data-equipment-id="${row.id}"
+                                         data-support-id="${row.support || ''}"
+                                         data-equipment-name="${row.equipment_name || ''}"
+                                         data-contract-id="${contractId || ''}">
+                                         <i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать</a></li>
+                                 <li>
                                  <li>
                                      <a class="dropdown-item remove-item-btn" data-delete-id="${row.id}" href="#">
                                          <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить

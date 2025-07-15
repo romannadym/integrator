@@ -1,0 +1,234 @@
+{% load static %}
+<div class="modal fade zoomIn" id="showModalEditEquipment" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="contractEqModalLabel">Редактирование оборудования</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data" class="tablelist-form" autocomplete="off" id="edit-equipment-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row g-3">
+
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Поддержка:</h6>
+                            <select class="js-example-basic-single" name="e-support" id="e-support" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
+                    </div>
+                    <!--end row-->
+                </div>
+                <div class="modal-footer">
+                    <div class="hstack gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="submit" class="btn btn-success" id="edit-eq-btn">Создать</button>
+                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function () {
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              document.cookie.split(';').forEach(cookie => {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.split('=')[1]);
+                  }
+              });
+          }
+          return cookieValue;
+      }
+
+      var path = window.location.pathname;
+      var contractId = path.split('/').pop();
+      $('#e-support').select2({
+            dropdownParent: $('#showModalEditEquipment'),
+            language: 'ru',
+            ajax: {
+                url: '/contracts/api/levels',
+
+                data: function(params) {
+                    return {
+                    };
+                },
+
+
+                cache: true,
+                dataType: 'json',
+                delay: 250,
+                processResults: function(data) {
+                  return {
+                      results: data.map(item => ({
+                          id: item.id,
+                          text: item.name
+                      }))
+                  }
+                }
+            },
+            allowClear: false,
+
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+      });
+      $('#showModalEditEquipment').on('show.bs.modal', function (event) {
+        const button = $(event.relatedTarget); // Кнопка, что вызвала модал
+        const contractId = button.data('contractId');
+        const supportId = button.data('supportId');
+        const equipmentId = button.data('equipmentId');
+        const equipmentName = button.data('equipmentName');
+        const modal = $(this);
+
+        modal.find('#contractEqModalLabel').text(`Редактирование оборудования #${equipmentId} ( ${equipmentName} )`);
+        // 1. Очищаем предыдущее значение
+        $('#e-support').val(null).trigger('change');
+
+        // 2. Если есть ID поддержки - устанавливаем его
+        if (supportId) {
+            // Сначала проверяем, есть ли option в DOM
+            if ($('#e-support').find('option[value="' + supportId + '"]').length) {
+                $('#e-support').val(supportId).trigger('change');
+            } else {
+                // Если нет - загружаем через AJAX
+                $.get('/contracts/api/levels/' + supportId, function(data) {
+                    const newOption = new Option(data.name, data.id, true, true);
+                    $('#e-support').append(newOption).trigger('change');
+                });
+            }
+        }
+
+        $('#edit-eq-btn').off('click').on('click', (evn) => {
+          evn.preventDefault();
+          // Блокируем кнопку отправки
+          let submitButton = $('#edit-eq-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+          submitButton.prop('disabled', true);
+          // Сохраняем текст, если надо восстановить потом
+          let originalText = submitButton.html();
+
+          // Блокируем и добавляем фиксированные размеры
+          let buttonWidth = submitButton.outerWidth();
+          let buttonHeight = submitButton.outerHeight();
+
+          submitButton.prop('disabled', true).css({
+            width: buttonWidth,
+            height: buttonHeight
+          }).html(`
+            <span class="d-flex justify-content-center align-items-center w-100 h-100">
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            </span>
+          `);
+          let data = {
+              support: $('#e-support').val()
+          };
+
+          $.ajax({
+              url: `/contracts/api/eqcontract/${contractId}/${equipmentId}/`,
+              method: 'PUT',
+              data: JSON.stringify(data),
+              headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+               },
+               statusCode: {
+                 200: function(result) {
+                     //console.log(result)
+                       alertEqEditSuccess('Оборудование успешно изменено')
+                       $('.update-contract-eq-success').on('click', () => {
+                          modal.modal('hide');
+                          contractEquipmentsTable.ajax.reload(null, false);
+                       });
+                 },
+                 406: function(result) {
+                       alertEqEditError(result.responseJSON.error)
+                 },
+                 400: function(result) {
+                   let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+                   // Если есть JSON с ошибками
+                     if (result.responseJSON) {
+                         // Собираем все ошибки в один текст
+                         const errors = [];
+                         for (const field in result.responseJSON) {
+                             errors.push(...result.responseJSON[field]);
+                         }
+                         errorMessage = errors.join('<br>');
+                     }
+                     // Если нет JSON, но есть текст
+                     else if (result.responseText) {
+                         try {
+                             const json = JSON.parse(result.responseText);
+                             errorMessage = json.message || result.responseText;
+                         } catch {
+                             errorMessage = result.responseText;
+                         }
+                     }
+
+                     // Показываем ошибку пользователю
+                     alertEqEditError(errorMessage);
+                 }
+
+               },
+              error: function(e) {
+                console.log(e)
+                let status = '';
+                if(e.status){
+                  status = 'Статус ошибки - ' + e.status;
+                }
+                let detail = '';
+                if(e.responseJSON)
+                {
+                  detail = e.responseJSON.detail;
+                }
+                alertEqEditError(`${status}<br>${detail}`)
+              },
+              complete: function() {
+                submitButton.prop('disabled', false);
+                submitButton.html(originalText); // Восстанавливаем текст кнопки
+              }
+          });
+        });
+      });
+    });
+
+    function alertEqEditSuccess (text)
+    {
+      Swal.fire({
+          html: '<div class="mt-3">' +
+              '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
+              '<div class="mt-4 pt-2 fs-15">' +
+              '<h4>Успех !</h4>' +
+              `<p class="text-muted mx-4 mb-0">${text}</p>` +
+              '</div>' +
+              '</div>',
+          showCancelButton: true,
+          showConfirmButton: false,
+          cancelButtonClass: 'btn btn-primary w-xs mb-1 update-contract-eq-success',
+          cancelButtonText: 'Oк',
+          buttonsStyling: false,
+          showCloseButton: true
+      })
+    }
+    function alertEqEditError(text){
+      Swal.fire({
+          html: '<div class="mt-3">' +
+              '<lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" colors="primary:#f06548,secondary:#f7b84b" style="width:120px;height:120px"></lord-icon>' +
+              '<div class="mt-4 pt-2 fs-15">' +
+              '<h4>Упс...! Что то пошло не так!</h4>' +
+              `<p class="text-muted mx-4 mb-0">${text}</p>` +
+              '</div>' +
+              '</div>',
+          showCancelButton: true,
+          showConfirmButton: false,
+          cancelButtonClass: 'btn btn-primary w-xs mb-1 update-contract-eq-error',
+          cancelButtonText: 'Закрыть',
+          buttonsStyling: false,
+          showCloseButton: true
+      })
+    }
+</script>
