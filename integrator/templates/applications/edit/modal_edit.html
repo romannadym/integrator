@@ -100,7 +100,8 @@
   })
   function changeTicket(){
     let status = $('#t-status').val();
-    if(status == '6')
+
+    if(status == '6' && ($('#t-engineer').val() === null || $('#t-engineer').val().length === 0) )
     {
       alertError('Назначте инженера');
       return;
