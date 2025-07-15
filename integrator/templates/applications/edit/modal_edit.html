@@ -99,7 +99,12 @@
 
   })
   function changeTicket(){
-    console.log($('#t-engineer').val())
+    let status = $('#t-status').val();
+    if(status == '6')
+    {
+      alertError('Назначте инженера');
+      return;
+    }
     let submitButton = $('#updateTicket'); // Убедитесь, что у кнопки отправки есть id='submit-button'
     submitButton.prop('disabled', true);
     // Сохраняем текст, если надо восстановить потом

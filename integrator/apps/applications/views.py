@@ -238,24 +238,31 @@ def EditApplicationView(request, application_id): #Редактирование 
     from applications.models import AppStatusModel
     from applications.forms import EditApplicationForm, AppStatusFormset, AppSpareFormset, EditAppDocumentsFormset
 
+    try:
+        data = EditApplicationAPIView.as_view()(request = request, application_id = application_id).data
+        app = GetApplication(application_id)
+        if not app:
+                raise ApplicationModel.DoesNotExist()
+        confs = EquipmentConfigModel.objects.filter(equipment = app.equipment.equipment).annotate(filename = Value(''))
+        for doc in confs:
+            doc.filename = os.path.basename(doc.document.name)
 
-    data = EditApplicationAPIView.as_view()(request = request, application_id = application_id).data
-    app = GetApplication(application_id)
-    confs = EquipmentConfigModel.objects.filter(equipment = app.equipment.equipment).annotate(filename = Value(''))
-    for doc in confs:
-        doc.filename = os.path.basename(doc.document.name)
-
-    form = EditApplicationForm(instance = app)
-    formset = AppStatusFormset(instance = app)
-    document = EditAppDocumentsFormset(instance = app)
-    comment = AppEditCommentForm()
-    spares = AppSpareFormset(instance = app)
+        form = EditApplicationForm(instance = app)
+        formset = AppStatusFormset(instance = app)
+        document = EditAppDocumentsFormset(instance = app)
+        comment = AppEditCommentForm()
+        spares = AppSpareFormset(instance = app)
 
 
 
-    context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'permissions': permissions, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
-    return render(request, 'applications/edit/edit.html', context)
-
+        context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'permissions': permissions, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
+        return render(request, 'applications/edit/edit.html', context)
+    except ApplicationModel.DoesNotExist:
+        # Рендерим страницу-заглушку для несуществующей заявки
+        return render(request, 'applications/not_found.html', {
+            'permissions': permissions,
+            'application_id': application_id
+        }, status=404)
 @login_required
 @require_POST
 def EqModelsView(request): #Выбрать модели оборудования по бренду
