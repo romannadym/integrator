@@ -1301,12 +1301,13 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         # Обновление статуса при первом назначении инженеров
         if application.status_id == 1 and engineers_changed and new_engineers:
             data['status'] = 6
-
+        app_status = StatusModel.objects.get(id=data['status'])
+        app_status_name = app_status.name
         history = []
         params = {
             'id': application_id,
             'url': request.build_absolute_uri(application.get_absolute_url()),
-            'status': '',
+            'status': app_status_name,
             'type': 'edit'
         }
 
