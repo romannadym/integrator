@@ -77,14 +77,16 @@ class ApplicationForm(forms.ModelForm):
             self.fields['client'].initial = user
             self.fields['client'].disabled = True  # Блокируем выбор для переданного пользователя
         else:
-            # Если пользователь не передан - выбираем по максимальному ID
-            self.fields['client'].queryset = self.User.objects.filter(
-                Q(groups__name='Заказчик') &
-                Q(is_active=True) &
-                Q(id=Subquery(max_user_subquery))  # Фильтр по максимальному ID
-            ).annotate(
-                organization_name=F('organization__name')
-            ).order_by('organization__name')
+            # Если пользователь не передан - используем client из POST-данных (если есть)
+            client_id = self.data.get('client') if hasattr(self, 'data') else None
+            if client_id:
+                self.fields['client'].queryset = self.User.objects.filter(
+                    Q(groups__name='Заказчик') &
+                    Q(is_active=True) &
+                    Q(id=client_id)  # Берём пользователя из POST-запроса
+                ).annotate(
+                    organization_name=F('organization__name')
+                )
 
         # Настройка поля contact
         if user and hasattr(user, 'organization'):

@@ -38,10 +38,10 @@ from integrator.apps.functions import is_admin_or_engineer, get_prms_from_ids
 def AddApplicationView(request): #Создание заявки
     User = get_user_model()
 
-    if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
-        form = ApplicationForm(request.user)
-    else:
-        form = ApplicationForm()
+    #if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
+        #form = ApplicationForm(request.user)
+    #else:
+        #form = ApplicationForm()
 
     doc_formset = AppDocumentsFormset()
 
@@ -62,10 +62,11 @@ def AddApplicationView(request): #Создание заявки
 
             return JsonResponse(list(equipments), safe = False)
         #errors = form.errors.as_json()
-        print("Form errors:", request.POST)
+
         if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
             form = ApplicationForm(request.user, request.POST)
         else:
+            print("Form errors:", request.POST)
             form = ApplicationForm(None, request.POST)
 
         from applications.models import AppStatusModel
