@@ -15,69 +15,164 @@ import telegram
 from integrator.celery import app
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
+from django.db.models import Subquery, OuterRef
 User = get_user_model()
 
 from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel
 
 @app.task
 def CloseApplication():
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("=== TASK STARTED ===")
+    try:
+        status = StatusModel.objects.get(id=4)
+        user = User.objects.get(id=1)
 
-    status = StatusModel.objects.get(id = 4)
-    user = User.objects.get(id = 1)
+        # Дебаг: выводим текущее время
+        now = django.utils.timezone.now()
+        print(f"Current time: {now}")
 
-    records = []
-    old_apps = []
-    delta = django.utils.timezone.now() - timedelta(days = 14)#3
-    apps = ApplicationModel.objects.filter(status_id = 3).prefetch_related(Prefetch('appstatuses', queryset = AppStatusModel.objects.filter(status_id = 3)))
+        delta = now - timedelta(days=14)
+        print(f"Delta time (14 days ago): {delta}")
 
-    for app in apps:
-        for st in app.appstatuses.all():
-            if(st.pubdate < delta):
-                records.append({'application': app, 'status_id': 4})
-                app.status = status
-                app.save()
+        # 1. Находим ВСЕ заявки со статусом 3
+        status3_apps = ApplicationModel.objects.filter(status_id=3)
+        logger.info(f"Total apps with status 3: {status3_apps.count()}")
 
-                AppHistoryModel.objects.create(type = 1, text = 'Статус заявки изменен на "' + str(status) + '". Закрыто автоматически', application = app, author = user)
+        # 2. Для каждой заявки получаем ПОСЛЕДНЮЮ запись в AppStatusModel
+        apps_to_close = []
+        for app in status3_apps:
+            try:
+                # Получаем последнюю запись статуса для этой заявки
+                last_status = app.appstatuses.order_by('-pubdate').first()
 
-    list = [AppStatusModel(**vals) for vals in records]
+                if not last_status:
+                    logger.warning(f"App {app.id} has no status history!")
+                    continue
 
-    AppStatusModel.objects.bulk_create(list)
+                logger.info(f"App {app.id} last status: {last_status.status_id} at {last_status.pubdate}")
 
-    for app in apps:
-        text = render_to_string('applications/mail.html', {'id': app.pk, 'url': request.build_absolute_uri(app.get_absolute_url()), 'status': status, 'type': 'edit'})
-        mail = EmailMessage('Изменение статуса заявки', text, settings.EMAIL_HOST_USER, [app.contact.email])
-        mail.content_subtype = "html"
-        try:
-            mail.send()
-        except Exception:
-            AppHistoryModel.objects.create(type = 3, text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + str(status) + '" на адрес электронной почты ' + app.contact.email, application = app, author = user)
-        else:
-            AppHistoryModel.objects.create(type = 3, text = 'Отправлено сообщение об изменении статуса заявки на "' + str(status) + '" на адрес электронной почты ' + app.contact.email, application = app, author = user)
+                # Проверяем условия:
+                # 1. Последний статус = 3
+                # 2. Дата последнего статуса 3 > 14 дней
+                if last_status.status_id == 3 and last_status.pubdate < delta:
+                    logger.info(f"Should close app {app.id} (last status 3 at {last_status.pubdate})")
+                    apps_to_close.append(app)
 
-        telegram_settings = settings.TELEGRAM
-        bot = telegram.Bot(token = telegram_settings['bot_token'])
-        text = render_to_string('applications/telegram.html', {'id': app.pk, 'url': request.build_absolute_uri(app.get_absolute_url()), 'status': status, 'type': 'edit'})
-        try:
-            bot.send_message(chat_id = telegram_settings['channel_id'], text = text, parse_mode = telegram.ParseMode.HTML)
-        except Exception:
-            AppHistoryModel.objects.create(type = 4, text = 'Не удалось отправить сообщение об изменении статуса заявки на "' + str(status) + '" в телеграм-канал', application = app, author = user)
-        else:
-            AppHistoryModel.objects.create(type = 4, text = 'Отправлено сообщение об изменении статуса заявки на "' + str(status) + '" в телеграм-канал', application = app, author = user)
+            except Exception as e:
+                logger.error(f"Error processing app {app.id}: {str(e)}")
+                continue
 
-    # Архив заявок
-    delta = django.utils.timezone.now() - relativedelta(years = 1)
-    archives = ApplicationModel.objects.filter(status_id = 4, pubdate__lt = delta)
-    for record in archives:
-        try:
-            ApplicationArchiveModel.objects.create(old_id = record.id, priority = record.priority, equipment = record.equipment, problem = record.problem,\
-                contact = record.contact, client = record.client, engineer = record.engineer, pubdate = record.pubdate,\
-                status = record.status, creator = record.creator)
+        logger.info(f"Found {len(apps_to_close)} apps to close")
 
-            record.delete()
-        except Exception:
-            pass
+        for app in apps_to_close:
+            app.status = status
+            app.save()
 
-    return HttpResponse(apps)
+            # Создаем запись в истории статусов
+            AppStatusModel.objects.create(
+                application=app,
+                status=status,
+            )
+
+            # Запись в истории
+            AppHistoryModel.objects.create(
+                type=1,
+                text=f'Статус заявки изменен на "{status}". Закрыто автоматически',
+                application=app,
+                author=user
+            )
+
+            # Отправка email (без request)
+            email_url = f"{settings.BASE_URL}{app.get_absolute_url()}"
+            try:
+                text = render_to_string('applications/mail.html', {
+                    'id': app.pk,
+                    'url': email_url,
+                    'status': status,
+                    'type': 'edit'
+                })
+                mail = EmailMessage(
+                    'Изменение статуса заявки',
+                    text,
+                    settings.EMAIL_HOST_USER,
+                    [app.contact.email]
+                )
+                mail.content_subtype = "html"
+                mail.send()
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Отправлено сообщение об изменении статуса на "{status}" на email {app.contact.email}',
+                    application=app,
+                    author=user
+                )
+            except Exception as e:
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Не удалось отправить сообщение об изменении статуса на "{status}" на email {app.contact.email}: {str(e)}',
+                    application=app,
+                    author=user
+                )
+
+            # Отправка в Telegram
+            try:
+                telegram_settings = settings.TELEGRAM
+                bot = telegram.Bot(token=telegram_settings['bot_token'])
+                tg_url = f"{settings.BASE_URL}{app.get_absolute_url()}"
+                text = render_to_string('applications/telegram.html', {
+                    'id': app.pk,
+                    'url': tg_url,
+                    'status': status,
+                    'type': 'edit'
+                })
+                bot.send_message(
+                    chat_id=telegram_settings['channel_id'],
+                    text=text,
+                    parse_mode=telegram.ParseMode.HTML
+                )
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text=f'Отправлено сообщение об изменении статуса на "{status}" в Telegram',
+                    application=app,
+                    author=user
+                )
+            except Exception as e:
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text=f'Не удалось отправить сообщение в Telegram: {str(e)}',
+                    application=app,
+                    author=user
+                )
+
+        # Архивирование старых заявок (1 год)
+        archive_delta = django.utils.timezone.now() - relativedelta(years=1)
+        archives = ApplicationModel.objects.filter(status_id=4, pubdate__lt=archive_delta)
+
+        for record in archives:
+            try:
+                main_engineer = record.engineers.first() if record.engineers.exists() else None
+                ApplicationArchiveModel.objects.create(
+                    old_id=record.id,
+                    priority=record.priority,
+                    equipment=record.equipment.equipment if record.equipment else None,
+                    problem=record.problem,
+                    contact=record.contact,
+                    client=record.client,
+                    engineer=main_engineer,
+                    pubdate=record.pubdate,
+                    status=record.status,
+                    creator=record.creator
+                )
+                record.delete()
+            except Exception as e:
+                logger.error(f"Ошибка при архивировании заявки {record.id}: {str(e)}")
+
+        return f"Успешно закрыто {len(apps_to_close)} заявок"
+
+    except Exception as e:
+        logger.error(f"Ошибка в задаче CloseApplication: {str(e)}")
+        raise
 
 def decode_subject(subject):
     """Корректно декодирует заголовок Subject."""
