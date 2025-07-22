@@ -1236,9 +1236,14 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         else:
             # Для обычных пользователей извлекаем комментарии из ответа
             comments_response = ApplicationCommentsAPIView().get(request=request, application_id=application_id).data
-            history = list(comments_response['comments'])  # Преобразуем QuerySet в список
+            # Инициализируем history пустым списком по умолчанию
+            history = []
+            if 'comments' in comments_response:
+                history = list(comments_response['comments'])  # Преобразуем QuerySet в список
+
             def parse_date(date_str):
                 return datetime.strptime(date_str, '%d.%m.%Y %H:%M')
+
             history_sorted = {}
             history_sorted['comments'] = sorted(history, key=lambda x: parse_date(x['formatted_date']))
             print("Sample content:", history_sorted)
