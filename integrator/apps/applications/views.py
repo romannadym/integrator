@@ -66,7 +66,7 @@ def AddApplicationView(request): #Создание заявки
         if not request.user.groups.filter(name = 'Администратор').exists() and not request.user.groups.filter(name = 'Инженер').exists():
             form = ApplicationForm(request.user, request.POST)
         else:
-            print("Form errors:", request.POST)
+            print("request body:", request.POST)
             form = ApplicationForm(None, request.POST)
 
         from applications.models import AppStatusModel
@@ -87,8 +87,12 @@ def AddApplicationView(request): #Создание заявки
 
             # Разбор оборудования
             eq_list = request.POST.get('equipment')[0:-1].split(' (S/n: ')
-            app.equipment = ContractEquipmentModel.objects.get(sn=eq_list[1])
-
+            from django.utils import timezone
+            app.equipment = ContractEquipmentModel.objects.filter(
+                    sn=eq_list[1],
+                    contract__enddate__gte=timezone.now().date()  # Только с действующим контрактом
+                ).order_by('-id').first()
+            print("КРЮК:", app.equipment)
             app.save()  # Сохраняем заявку перед связью с файлами
 
             # Перемещение временных файлов в модель AppDocumentModel
