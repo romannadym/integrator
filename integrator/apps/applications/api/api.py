@@ -1292,7 +1292,12 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         if data.get('equipment_str'):
             eq_list = data.get('equipment_str')[0:-1].split(' (S/n: ')
             try:
-                data['equipment'] = ContractEquipmentModel.objects.get(sn=eq_list[1]).id
+                from django.utils import timezone
+                data['equipment'] = ContractEquipmentModel.objects.filter(
+                        sn=eq_list[1],
+                        contract__enddate__gte=timezone.now().date()  # Только с действующим контрактом
+                    ).order_by('-id').first().id
+                print("КРЮК:", data['equipment'])
             except ContractEquipmentModel.DoesNotExist:
                 return Response({'message': 'Оборудование не найдено по серийному номеру'},
                                 status=status.HTTP_406_NOT_ACCEPTABLE)
