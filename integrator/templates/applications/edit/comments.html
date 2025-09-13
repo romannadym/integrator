@@ -27,7 +27,12 @@
                           <img src="/static/assets/images/users/user-dummy-img.jpg" alt="" class="avatar-xs rounded-circle" />
                       </div>
                       <div class="flex-grow-1 ms-3">
-                          <h5 class="fs-13"><b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small></h5>
+                          <h5 class="fs-13">
+                            <b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small>
+                            {% if record.author_id and record.author_id == user.id %}
+                              <a class="" href="#showModalEditComment" data-comment-id="{{ record.id|safe }}" data-text-edit="{{ record.text|safe }}" data-bs-toggle="modal"><i class="ri-pencil-fill align-bottom me-2 text-muted"></i></a>
+                            {% endif %}
+                          </h5>
                           {% if record.record_type == 'comment' and record.hide %}
                             <p class="text-muted">Комментарий скрыт от пользователей</p>
                           {% endif %}
@@ -42,7 +47,12 @@
                             <img src="/static/assets/images/users/user-dummy-img.jpg" alt="" class="avatar-xs rounded-circle" />
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <h5 class="fs-13"><b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small></h5>
+                            <h5 class="fs-13">
+                              <b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small>
+                              {% if record.author_id and record.author_id == user.id %}
+                                <a class="" href="#showModalEditComment" data-comment-id="{{ record.id|safe }}"  data-text-edit="{{ record.text|safe }}" data-bs-toggle="modal"><i class="ri-pencil-fill align-bottom me-2 text-muted"></i></a>
+                              {% endif %}
+                            </h5>
                             <p class="text-muted">{{ record.text|safe }}</p>
                         </div>
                     </div>

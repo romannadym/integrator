@@ -1666,7 +1666,7 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
                 When(author__last_name = '', then = F('author__email')),
                 default = Value(''), output_field = CharField()
             ))
-        ).values('id', 'text', 'formatted_date', 'author_name')
+        ).values('id', 'text', 'formatted_date', 'author_name', 'author_id')
 
         return Response({'comments': comments}, status = status.HTTP_200_OK)
 
@@ -1788,7 +1788,7 @@ class ApplicationHistoryAPIView(APIView):
                 ),
                 record_type = Value('comment')
             )\
-            .order_by('pubdate').values('id', 'pubdate', 'formatted_date', 'text', 'author_name', 'record_type', 'hide')
+            .order_by('pubdate').values('id', 'pubdate', 'formatted_date', 'text', 'author_name', 'record_type', 'hide', 'author_id')
         history = sorted(chain(statuses, comments), key=lambda item: item['pubdate'], reverse = True)
 
         return Response(history, status = status.HTTP_200_OK)

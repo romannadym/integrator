@@ -24,7 +24,6 @@
         dataType: 'json',
         success: function(result, status, xhr) {
           if (xhr.status === 200) {
-            console.log(result)
             let html = '';
             result.forEach(log => {
              html +=  `<li class="list-group-item py-3">
