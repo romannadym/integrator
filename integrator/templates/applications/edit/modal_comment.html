@@ -28,6 +28,34 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade zoomIn" id="showModalRemoveComment" tabindex="-1" aria-labelledby="removeComment" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header p-3 bg-info-subtle">
+                <h5 class="modal-title" id="exampleModalRemoveComment">Удалить коментарий ?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="close-modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+
+                    <div class="col-lg-12">
+                        <textarea class="form-control" disabled id="r-comment" rows="12"></textarea>
+                    </div>
+
+                </div>
+                <!--end row-->
+            </div>
+            <div class="modal-footer">
+                <div class="hstack gap-2 justify-content-end">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Закрыть</button>
+                    <button type="button" class="btn btn-danger" id="removeComment">Удалить</button>
+                    <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <script type="text/javascript">
     $(document).ready(function() {
       $('#showModalEditComment').on('show.bs.modal', function (event) {
@@ -109,6 +137,81 @@
                });
              });
         })
+
+        $('#showModalRemoveComment').on('show.bs.modal', function (event) {
+           const button = $(event.relatedTarget); // Кнопка, что вызвала модал
+           const textComment = button.data('textEdit');
+           const commentId = button.data('commentId');
+           $('#r-comment').val(textComment);
+
+
+           $('#removeComment').on('click', function (e) {
+             e.preventDefault();
+
+             let submitButton = $('#removeComment'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+             submitButton.prop('disabled', true);
+             // Сохраняем текст, если надо восстановить потом
+             let originalText = submitButton.html();
+
+             // Блокируем и добавляем фиксированные размеры
+             let buttonWidth = submitButton.outerWidth();
+             let buttonHeight = submitButton.outerHeight();
+
+             submitButton.prop('disabled', true).css({
+               width: buttonWidth,
+               height: buttonHeight
+             }).html(`
+               <span class="d-flex justify-content-center align-items-center w-100 h-100">
+                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+               </span>
+             `);
+                   $.ajax({
+                     url: '/applications/api/comment/'+commentId,  // Замените на ваш реальный URL
+                     type: 'DELETE',
+                     headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                     statusCode: {
+                       200: function (result) {
+                         console.log(result);
+                         //$('#showModalCreateTicketZips').modal('hide');
+                         alertSuccess(`Комментарий удален!`);
+                         $('.edit-ticket-success').on('click', () => location.reload());
+                       },
+                       403: function(result) {
+                           alertError('Ошибка 403!')
+                       },
+                       400: function(result) {
+                           alertError('Ошибка 400!')
+                       },
+                       406: function(result) {
+                           console.log('Ошибка 406!')
+                           alertError('Ошибка 404!<br>'+result.message)
+                       },
+                       422: function(result) {
+                           console.log('Ошибка 422!')
+                           alertError('Ошибка 422!<br>'+result.message)
+                       }
+                     //  $('#showModalCreateTicketZips').modal('hide');
+                     },
+                     error: function (e) {
+                       console.log(e)
+                       let status = '';
+                       if(e.status){
+                         status = 'Статус ошибки - ' + e.status;
+                       }
+                       let detail = '';
+                       if(e.responseJSON)
+                       {
+                         detail = e.responseJSON.detail;
+                       }
+                       alertError(`${status}<br>${detail}`)
+                     },
+                     complete: function() {
+                       submitButton.prop('disabled', false);
+                       submitButton.html(originalText); // Восстанавливаем текст кнопки
+                     }
+                   });
+                 });
+         })
     })
 
 </script>
