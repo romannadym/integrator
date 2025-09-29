@@ -1658,14 +1658,15 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
                 Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                 Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
             ),
-            author_name = Trim(Case(
-                When(
-                    Q(author__last_name__isnull = False),
-                    then = Concat('author__first_name', Value(' '), 'author__last_name')
-                ),
-                When(author__last_name = '', then = F('author__email')),
-                default = Value(''), output_field = CharField()
-            ))
+            author_name = Trim(
+                Case(
+                    When(
+                        Q(author__last_name__isnull = False) & ~Q(author__last_name = ''),
+                        then = Concat('author__last_name', Value(' '), 'author__first_name', output_field = CharField())
+                    ),
+                    default = F('author__email'), output_field = CharField()
+                )
+            )
         ).values('id', 'text', 'formatted_date', 'author_name', 'author_id')
 
         return Response({'comments': comments}, status = status.HTTP_200_OK)
@@ -1781,7 +1782,15 @@ class ApplicationHistoryAPIView(APIView):
 
         comments = AppCommentModel.objects.filter(application_id = application_id)\
             .annotate(
-                author_name = Trim(Concat('author__last_name', Value(' '), 'author__first_name', output_field = CharField())),
+                author_name = Trim(
+                    Case(
+                        When(
+                            Q(author__last_name__isnull = False) & ~Q(author__last_name = ''),
+                            then = Concat('author__last_name', Value(' '), 'author__first_name', output_field = CharField())
+                        ),
+                        default = F('author__email'), output_field = CharField()
+                    )
+                ),
                 formatted_date = Func(
                     Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                     Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
