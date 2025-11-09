@@ -124,10 +124,19 @@ class SkladZipAPI(APIView):
                 ]
 
             # Преобразование в формат Select2
+
+            def format_item_text(item):
+                parts = [item['name']]
+                if item.get('partnum'):
+                    parts.append(f"(pn: {item['partnum']})")
+                if item.get('serial'):
+                    parts.append(f"(sn: {item['serial']})")
+                return " ".join(parts)
+
             items = [
                 {
                     "id": item["id"],
-                    "text": f"{item['name']} ({item.get('partnum', '')})"  # Можно добавить доп. информацию
+                    "text": format_item_text(item)
                 }
                 for item in filtered_rows
             ]
