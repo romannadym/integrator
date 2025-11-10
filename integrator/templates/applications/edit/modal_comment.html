@@ -12,7 +12,7 @@
 
                     <div class="col-lg-12">
                         <h6 class="fw-semibold">Комментарий:</h6>
-                        <textarea class="form-control" id="e-comment" rows="12"></textarea>
+                        <textarea class="form-control ckeditor-output" id="e-comment" rows="12"></textarea>
                     </div>
 
                 </div>
@@ -40,7 +40,7 @@
                 <div class="row g-3">
 
                     <div class="col-lg-12">
-                        <textarea class="form-control" disabled id="r-comment" rows="12"></textarea>
+                        <div class="form-control ckeditor-output" disabled id="r-comment" rows="12"></div>
                     </div>
 
                 </div>
@@ -59,9 +59,40 @@
 <script type="text/javascript">
     $(document).ready(function() {
       $('#showModalEditComment').on('show.bs.modal', function (event) {
+
          const button = $(event.relatedTarget); // Кнопка, что вызвала модал
          const textComment = button.data('textEdit');
          const commentId = button.data('commentId');
+
+         if (CKEDITOR.instances['e-comment']) {
+             CKEDITOR.instances['e-comment'].destroy(true);
+         }
+
+         CKEDITOR.replace('e-comment', {
+             toolbar: [
+                 { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike'] },
+                 { name: 'links', items: ['Link', 'Unlink'] },
+                 { name: 'lists', items: ['BulletedList', 'NumberedList'] },
+                 { name: 'undo', items: ['Undo', 'Redo'] }
+             ],
+             // 1. Явно разрешаем data- атрибуты для <a>
+             extraAllowedContent: 'a[data-*]{*}; div[data-*]{*}',
+             // 2. Отключаем автоматическую фильтрацию
+             allowedContent: true,
+             // 3. Запрещаем преобразование символов в сущности
+             basicEntities: false,
+             entities: false,
+             // 4. Режим ввода
+             enterMode: CKEDITOR.ENTER_P,
+             shiftEnterNewtonMode: CKEDITOR.ENTER_P,
+             // 5. Отключаем очистку стилей
+             forcePasteAsPlainText: false,
+             // 6. Для Bootstrap-модал: явно разрешаем data-bs-toggle
+             contentLanguage: '',
+             // 7. Дополнительная защита от XSS (если нужно)
+             xssProtection: false,
+             fillEmptyBlocks: false,
+         });
          $('#e-comment').val(textComment);
 
 
@@ -87,7 +118,7 @@
            </span>
          `);
          const text = {
-                       text : $('#e-comment').val()
+                       text : CKEDITOR.instances['e-comment'].getData()
                      };
                $.ajax({
                  url: '/applications/api/comment/'+commentId,  // Замените на ваш реальный URL
@@ -142,7 +173,7 @@
            const button = $(event.relatedTarget); // Кнопка, что вызвала модал
            const textComment = button.data('textEdit');
            const commentId = button.data('commentId');
-           $('#r-comment').val(textComment);
+           $('#r-comment').html(textComment);
 
 
            $('#removeComment').on('click', function (e) {
