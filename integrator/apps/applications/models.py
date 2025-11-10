@@ -243,29 +243,51 @@ def comments_send_messages(comment, method_type):
             text = 'Не удалось отправить сообщение ' + text_part + ' комментария "' + comment.text + '" на электронную почту'
         history.append({'type': 4, 'text': text, 'application': application, 'author': comment.author})
 
-    telegram_text = comment.text.replace('&nbsp;', ' ').replace('<ul>', '').replace('</ul>', '').replace('<ol>', '').replace('</ol>', '')
-    Parse = BeautifulSoup(telegram_text, 'html.parser')
+    # Очищаем HTML перед парсингом (уменьшаем нагрузку на BS4)
+    telegram_text = comment.text.replace('&nbsp;', ' ')
+    # Удаляем списки до парсинга — безопаснее
+    for tag in ['<ul>', '</ul>', '<ol>', '</ol>']:
+        telegram_text = telegram_text.replace(tag, '')
 
-    tags = ['p', 'span', 'blockquote', 'sup', 'sub', 'li', 'a', 'div']
+    try:
+        Parse = BeautifulSoup(telegram_text, 'html.parser')
+        tags_to_unwrap = ['p', 'span', 'blockquote', 'sup', 'sub', 'li', 'a', 'div']
 
-    all_the_tags = Parse.find_all()
-    for tag in all_the_tags:
-        if tag.has_attr('style'):
-            del tag.attrs['style']
-        if tag.name == "br":
-            tag.replace_with("\n")
-        if tag.name in tags:
-            if tag.name == 'p' or tag.name == 'li':
-                if tag.string:
+        # Собираем все теги заранее (чтобы избежать проблем с изменением DOM)
+        all_tags = Parse.find_all()
+
+        for tag in all_tags:
+            # Удаляем style, если есть
+            if tag.has_attr('style'):
+                del tag.attrs['style']
+
+            # Обрабатываем <br>
+            if tag.name == "br":
+                tag.replace_with("\n")
+                continue  # Пропускаем дальнейшие операции для <br>
+
+            # Для нужных тегов — добавляем перенос строки и разворачиваем
+            if tag.name in tags_to_unwrap:
+                if tag.string and (tag.name == 'p' or tag.name == 'li'):
                     tag.string = tag.string + "\n"
-            tag.unwrap()
+                # Безопасный unwrap с проверкой
+                if tag.parent:
+                    tag.unwrap()
+                else:
+                    # Если тег уже не в дереве — просто удаляем его
+                    tag.extract()
 
-    telegram_text = str(Parse).strip()
+        telegram_text = str(Parse).strip()
+
+    except Exception as e:
+        # В случае ошибки используем исходный текст (без форматирования)
+        logger.error(f"BS4 parsing error: {e}")
+        telegram_text = comment.text.replace('&nbsp;', ' ')
 
     params['status'] = telegram_text
     params['author'] = comment.author.get_full_name() or comment.author.email
 
-    if send_telegram(params = params):
+    if send_telegram(params=params):
         text = 'Отправлено сообщение ' + text_part + ' комментария в телеграм-канал'
     else:
         text = 'Не удалось отправить сообщение ' + text_part + ' комментария в телеграм-канал'
