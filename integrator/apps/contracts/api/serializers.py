@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from contracts.models import SupportLevelModel, ContractModel, ContractEquipmentModel
+from equipments.models import EquipmentModel
 from django.contrib.auth import get_user_model
 User = get_user_model()  # Правильный способ получить модель пользователя
 class SupportLevelSerializer(serializers.ModelSerializer):
@@ -123,10 +124,31 @@ class EquipmentCreateSerializer(serializers.ModelSerializer):
             'contract': {'required': True}  # Убедитесь, что contract обязателен
         }
 class EquipmentUpdateSerializer(serializers.ModelSerializer):
+     # Поле для выбора нового оборудования (по ID)
+    new_equipment_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentModel.objects.all(),
+        write_only=True,
+        required=False,
+        label='Новое оборудование'
+    )
+
     class Meta:
         model = ContractEquipmentModel  # Или ваша модель оборудования
-        fields = ['support', 'sn']  # Только поле для уровня поддержки
+        fields = ['support', 'sn', 'new_equipment_id']  # Только поле для уровня поддержки
         extra_kwargs = {
             'support': {'required': True},
             'sn': {'required': True}
         }
+
+    def update(self, instance, validated_data):
+        # 1. Меняем оборудование, если передан new_equipment_id
+        new_equipment = validated_data.get('new_equipment_id')
+        if new_equipment is not None:
+            instance.equipment = new_equipment
+
+        # 2. Обновляем остальные поля
+        instance.sn = validated_data.get('sn', instance.sn)
+        instance.support = validated_data.get('support', instance.support)
+
+        instance.save()
+        return instance

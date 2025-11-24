@@ -1,4 +1,4 @@
-from django.db.models import Q, F, Value, Case, When
+from django.db.models import Q, F, Value, Case, When, ProtectedError
 
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -343,9 +343,43 @@ class EditOrganizationAPIView(APIView):
         responses = {(200, 'application/json'): OpenApiResponse(response = {'message': 'Объект удален'}, examples = [OpenApiExample('Пример', value = {'message': 'Объект удален'})])}
     )
     def delete(self, request, organization_id, *args, **kwargs):
+
         organization = GetOrganization(organization_id)
-        organization.delete()
-        return Response({'message': 'Объект удален'}, status = status.HTTP_200_OK)
+
+        try:
+            organization.delete()
+            return Response(
+                {'message': 'Объект удалён'},
+                status=status.HTTP_200_OK
+            )
+
+        except ProtectedError as e:
+            # Получаем список связанных объектов
+            related_objects = e.protected_objects
+
+            # Собираем информацию о пользователях (предполагаем, что это модель User)
+            users_info = []
+            for obj in related_objects:
+                users_info.append({
+                    'id': obj.id,
+                    'username': getattr(obj, 'username', 'Неизвестно'),
+                    'full_name': getattr(obj, 'get_full_name', lambda: 'Не указано')()
+                })
+
+            return Response({
+                'error': 'Невозможно удалить организацию: она привязана к пользователям.',
+                'details': {
+                    'связанные_пользователи': users_info,
+                    'количество': len(users_info)
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            # Общий обработчик неожиданных ошибок
+            return Response({
+                'error': 'Произошла ошибка при удалении организации.',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @extend_schema(
     tags = ['Организации (Done)'],

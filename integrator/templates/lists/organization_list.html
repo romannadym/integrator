@@ -190,30 +190,67 @@
               406: function(result) {
                     alertDeleteOrgError(result.responseJSON.error)
               },
+
               400: function(result) {
-                let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
-                // Если есть JSON с ошибками
-                  if (result.responseJSON) {
-                      // Собираем все ошибки в один текст
-                      const errors = [];
-                      for (const field in result.responseJSON) {
-                          errors.push(...result.responseJSON[field]);
+                  let errorMessage = 'Ошибка HTTP_400_BAD_REQUEST!';
+
+                  // Вспомогательная функция для глубокого преобразования объекта в строку
+                  function formatValue(value, depth = 0) {
+                    if (value === null) return 'null';
+                    if (typeof value !== 'object') return String(value);
+
+                    // Ограничиваем глубину рекурсии (защита от зацикливания)
+                    if (depth > 3) return '[глубокая структура]';
+
+                    const parts = [];
+                    for (const [key, val] of Object.entries(value)) {
+                      if (val === null) {
+                        parts.push(`${key}: null`);
+                      } else if (typeof val === 'object') {
+                        parts.push(`${key}: ${formatValue(val, depth + 1)}`);
+                      } else {
+                        parts.push(`${key}: ${val}`);
                       }
-                      errorMessage = errors.join('<br>');
-                  }
-                  // Если нет JSON, но есть текст
-                  else if (result.responseText) {
-                      try {
-                          const json = JSON.parse(result.responseText);
-                          errorMessage = json.message || result.responseText;
-                      } catch {
-                          errorMessage = result.responseText;
-                      }
+                    }
+                    return `{${parts.join(', ')}}`;
                   }
 
-                  // Показываем ошибку пользователю
+                  if (result.responseJSON) {
+                    const errors = [];
+
+                    for (const field in result.responseJSON) {
+                      const value = result.responseJSON[field];
+
+                      if (Array.isArray(value)) {
+                        // Обрабатываем массив
+                        if (value.length === 0) {
+                          errors.push(`${field}: []`);
+                        } else {
+                          value.forEach((item, index) => {
+                            errors.push(`[${field}][${index}]: ${formatValue(item, 1)}`);
+                          });
+                        }
+                      } else {
+                        // Обычное значение или объект
+                        errors.push(`${field}: ${formatValue(value, 1)}`);
+                      }
+                    }
+
+                    errorMessage = errors.join('<br>');
+                  }
+                  else if (result.responseText) {
+                    try {
+                      const json = JSON.parse(result.responseText);
+                      errorMessage = json.message || json.error || result.responseText;
+                    } catch (e) {
+                      errorMessage = result.responseText;
+                    }
+                  }
+
                   alertDeleteOrgError(errorMessage);
-              },
+                },
+
+
               403: function(result) {
                 let errorMessage = 'Ошибка HTTP_403_BAD_REQUEST!';
                 // Если есть JSON с ошибками

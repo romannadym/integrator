@@ -21,6 +21,12 @@
                             <h6 class="fw-semibold">Серийный номер:</h6>
                             <input type="text" class="form-control"  name="e-sn" id="e-sn" required>
                         </div>
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Модель:</h6>
+                            <select class="js-example-basic-single" name="e-name" id="e-name" required>
+                                <option value=""></option>
+                            </select>
+                        </div>
                     </div>
                     <!--end row-->
                 </div>
@@ -82,6 +88,47 @@
                 return markup;
             }
       });
+      $('#e-name').select2({
+          dropdownParent: $('#showModalEditEquipment'),
+          ajax: {
+              // Правильное чтение data-ajax--url
+              url: '/select2/fields/auto.json',
+
+              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
+              data: function(params) {
+                  return {
+                      term: params.term,
+                      field_id: $('#id_eqcontracts-__prefix__-equipment').data('field_id')  // или .data('field_id')
+                  };
+              },
+
+              // Дополнительные параметры из data-атрибутов
+
+              cache: true,
+              dataType: 'json',
+              delay: 250,
+              processResults: function(data) {
+                  return { results: data.results };
+              }
+          },
+          minimumInputLength: 2,
+          // Другие настройки из data-атрибутов
+          //minimumInputLength: parseInt($('#id_equipment').attr('data-minimum-input-length')),
+          theme: $('#e-name').attr('data-theme'),
+          allowClear: false,
+          language: {
+               noResults: function() {
+              return `<button  type="button"
+              class="btn btn-primary"
+              onClick='task()'>+ Добавить</button>
+              </li>`;
+              }
+           },
+
+          escapeMarkup: function (markup) {
+              return markup;
+          }
+    });
       $('#showModalEditEquipment').on('show.bs.modal', function (event) {
         const button = $(event.relatedTarget); // Кнопка, что вызвала модал
         const contractId = button.data('contractId');
@@ -93,6 +140,8 @@
         modal.find('#contractEqModalLabel').text(`Редактирование оборудования #${equipmentId} ( ${equipmentName} )`);
         // 1. Очищаем предыдущее значение
         $('#e-support').val(null).trigger('change');
+        const newOption = new Option(equipmentName, equipmentId, true, true);
+        $('#e-name').append(newOption).trigger('change');
 
         // 2. Если есть ID поддержки - устанавливаем его
         if (supportId) {
@@ -107,6 +156,7 @@
                 });
             }
         }
+
         $('#e-sn').val(equipmentSn);
         $('#edit-eq-btn').off('click').on('click', (evn) => {
           evn.preventDefault();
@@ -130,7 +180,8 @@
           `);
           let data = {
               support: $('#e-support').val(),
-              sn: $('#e-sn').val().trim()
+              sn: $('#e-sn').val().trim(),
+              new_equipment_id: $('#e-name').val()
           };
 
           $.ajax({
