@@ -50,7 +50,6 @@
            url: '/contracts/api/eqcontract/' + contractId,  // Путь к вашему API
            type: 'GET',
            data: function(d) {
-
            },
        },
 
@@ -78,6 +77,7 @@
                              <ul class="dropdown-menu dropdown-menu-end" style="">
                                  <li><a class="dropdown-item edit-item-btn" href="#showModalEditEquipment"data-bs-toggle="modal"
                                          data-equipment-id="${row.id}"
+                                         data-equipment-sn="${row.sn}"
                                          data-support-id="${row.support || ''}"
                                          data-equipment-name="${row.equipment_name || ''}"
                                          data-contract-id="${contractId || ''}">

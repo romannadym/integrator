@@ -125,7 +125,8 @@ class EquipmentCreateSerializer(serializers.ModelSerializer):
 class EquipmentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractEquipmentModel  # Или ваша модель оборудования
-        fields = ['support']  # Только поле для уровня поддержки
+        fields = ['support', 'sn']  # Только поле для уровня поддержки
         extra_kwargs = {
-            'support': {'required': True}
+            'support': {'required': True},
+            'sn': {'required': True}
         }

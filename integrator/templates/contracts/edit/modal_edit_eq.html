@@ -17,6 +17,10 @@
                                 <option value=""></option>
                             </select>
                         </div>
+                        <div class="col-lg-12">
+                            <h6 class="fw-semibold">Серийный номер:</h6>
+                            <input type="text" class="form-control"  name="e-sn" id="e-sn" required>
+                        </div>
                     </div>
                     <!--end row-->
                 </div>
@@ -83,9 +87,9 @@
         const contractId = button.data('contractId');
         const supportId = button.data('supportId');
         const equipmentId = button.data('equipmentId');
+        const equipmentSn = button.data('equipmentSn');
         const equipmentName = button.data('equipmentName');
         const modal = $(this);
-
         modal.find('#contractEqModalLabel').text(`Редактирование оборудования #${equipmentId} ( ${equipmentName} )`);
         // 1. Очищаем предыдущее значение
         $('#e-support').val(null).trigger('change');
@@ -103,7 +107,7 @@
                 });
             }
         }
-
+        $('#e-sn').val(equipmentSn);
         $('#edit-eq-btn').off('click').on('click', (evn) => {
           evn.preventDefault();
           // Блокируем кнопку отправки
@@ -125,7 +129,8 @@
             </span>
           `);
           let data = {
-              support: $('#e-support').val()
+              support: $('#e-support').val(),
+              sn: $('#e-sn').val().trim()
           };
 
           $.ajax({
