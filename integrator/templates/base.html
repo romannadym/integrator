@@ -40,6 +40,10 @@
         (function() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-bs-theme', savedTheme);
+            if(savedTheme === 'dark'){
+              CKEDITOR.addCss('.cke_editable { background-color: #212529; color: #e0e0e0; }');
+            }
+
         })();
     </script>
 

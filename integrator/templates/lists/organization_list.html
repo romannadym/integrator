@@ -100,6 +100,7 @@
            type: 'GET',
            data: function(d) {
                // Добавление данных для поиска
+               console.log(d)
            },
        },
 
@@ -118,6 +119,10 @@
                                <li>
                                    <a class="dropdown-item remove-org-btn" data-delete-org-id="${row.id}" href="#">
                                        <i class="ri-delete-bin-fill align-bottom me-2 text-muted"></i> Удалить
+                                   </a>
+                                   <a class="dropdown-item edit-org-btn" data-edit-org-id="${row.id}" data-edit-org-name="${row.name}" href="#showModalEditOrg"
+                                          data-bs-toggle="modal">
+                                       <i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать
                                    </a>
                                </li>
                            </ul>

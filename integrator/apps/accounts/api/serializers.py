@@ -82,7 +82,7 @@ class EditOrganizationSerializer(serializers.ModelSerializer):
             if contacts_update:
                 OrganizationContactModel.objects.bulk_update(contacts_update, ['fio', 'email', 'phone'])
 
-            return instance
+        return instance
 
 class OrganizationsDeleteSerializer(serializers.ModelSerializer):
     id = serializers.ListField(label = 'Идентификатор', child = serializers.IntegerField(), required = True)

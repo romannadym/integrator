@@ -94,22 +94,22 @@
           { name: 'undo', items: ['Undo', 'Redo'] }
       ],
       // 1. Явно разрешаем data- атрибуты для <a>
-      extraAllowedContent: 'a[data-*]{*}; div[data-*]{*}',
-      // 2. Отключаем автоматическую фильтрацию
-      allowedContent: true,
+//      extraAllowedContent: 'a[data-*]{*}; div[data-*]{*}',
+//      allowedContent: true,
       // 3. Запрещаем преобразование символов в сущности
-      basicEntities: false,
-      entities: false,
+//      basicEntities: false,
+//      entities: false,
       // 4. Режим ввода
-      enterMode: CKEDITOR.ENTER_P,
-      shiftEnterNewtonMode: CKEDITOR.ENTER_P,
+  //    enterMode: CKEDITOR.ENTER_P,
+  //    shiftEnterNewtonMode: CKEDITOR.ENTER_P,
       // 5. Отключаем очистку стилей
-      forcePasteAsPlainText: false,
+  //    forcePasteAsPlainText: false,
       // 6. Для Bootstrap-модал: явно разрешаем data-bs-toggle
-      contentLanguage: '',
+  //    contentLanguage: '',
       // 7. Дополнительная защита от XSS (если нужно)
-      xssProtection: false,
-      fillEmptyBlocks: false,
+    //  xssProtection: false,
+    //  fillEmptyBlocks: false,
+    //  skin: 'prestige'
   });
 </script>
 <script>
