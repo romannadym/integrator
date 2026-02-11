@@ -244,7 +244,6 @@ def CommentsFromEmails():
         if app_text:
             app_number = app_text.group(1)
             from_email = email.utils.parseaddr(email_message["From"])[1]
-
             body = ""
             if email_message.is_multipart():
                 for part in email_message.walk():
@@ -259,40 +258,108 @@ def CommentsFromEmails():
                 body = payload.decode(charset, errors="ignore")
             # Очищаем тело письма от истории переписки
 
-
+            import markdown
             def clean_body(text):
+                if is_markdown(text):
+                    text = markdown.markdown(text, output_format='html5')
                 # 1. Находим первый разделитель ----------------
                 # Ищем <div> с разделителем
-                import re
+                # 2. Парсим HTML и ищем первый <blockquote>
+                    soup = BeautifulSoup(text, 'html.parser')
+                    blockquote = soup.find('blockquote')
 
-                # Паттерн для поиска div с разделителем
-                divider_pattern = r'<div[^>]*>\s*-{4,}\s*</div>'
-                match = re.search(divider_pattern, text)
+                    if blockquote:
+                        # Находим позицию первого <blockquote> в исходном HTML
+                        blockquote_start = str(soup).find(str(blockquote))
+                        # Берём текст ДО <blockquote>
+                        main_content = text[:blockquote_start].strip()
+                    else:
+                        main_content = text.strip()
 
-                if match:
-                    # Берем текст до разделителя
-                    main_content = text[:match.start()].rstrip()
+                    # 3. Очищаем оставшуюся часть от HTML-тегов и мусора
+                    soup_clean = BeautifulSoup(main_content, 'html.parser')
+
+                    # Удаляем пустые теги (<div></div>, <p></p> и т.п.)
+                    for empty in soup_clean.find_all():
+                        if not empty.get_text(strip=True) and not empty.name in ['br', 'hr']:
+                            empty.decompose()
+
+                    main_content = str(soup_clean)
+
+                    # 4. Удаляем оставшиеся HTML-теги, сохраняя текст
+                    soup_text = BeautifulSoup(main_content, 'html.parser')
+                    main_content = soup_text.get_text(separator=' ', strip=True)
+
+                    # 5. Нормализуем пробелы и переносы
+                    main_content = re.sub(r'\s+', ' ', main_content).strip()
+
+                    # Удаляем возможные остатки \n, \r
+                    main_content = main_content.replace('\n', ' ').replace('\r', ' ').strip()
+
+                    # 6. Удаляем подписи (если остались)
+                    signature_patterns = [
+                        r'С\s+уважением[,:]?\s*[^<]+(?:\s+[\w\.-]+@[\w\.-]+\.[a-z]{2,})?',
+                        r'[\w\.-]+@[\w\.-]+\.[a-z]{2,}\s+С\s+уважением',
+                        r'Отправлено из[^<]*',
+                        r'Best regards[^<]*',
+                        r'Kind regards[^<]*'
+                    ]
+                    for pattern in signature_patterns:
+                        main_content = re.sub(pattern, '', main_content, flags=re.IGNORECASE)
+
+
+                    # 7. Финальная очистка пробелов
+                    main_content = re.sub(r'\s+', ' ', main_content).strip()
+
                 else:
-                    main_content = text.rstrip()
+                    # Паттерн для поиска div с разделителем если html изначально 
+                    divider_pattern = r'<div[^>]*>\s*-{4,}\s*</div>'
+                    match = re.search(divider_pattern, text)
 
-                # 2. Удаляем лишние пустые теги в конце
-                # Список паттернов для удаления
-                patterns_to_remove = [
-                    r'<div>\s*<br\s*/?>\s*</div>\s*<div>\s*<br\s*/?>\s*</div>\s*$',
-                    r'<div>\s*<br\s*/?>\s*</div>\s*$',
-                    r'<div>\s*</div>\s*$',
-                    r'<br\s*/?>\s*$'
-                ]
+                    if match:
+                        # Берем текст до разделителя
+                        main_content = text[:match.start()].rstrip()
+                    else:
+                        main_content = text.rstrip()
 
-                for pattern in patterns_to_remove:
-                    main_content = re.sub(pattern, '', main_content).rstrip()
+                    # 2. Удаляем лишние пустые теги в конце
+                    # Список паттернов для удаления
+                    patterns_to_remove = [
+                        r'<div>\s*<br\s*/?>\s*</div>\s*<div>\s*<br\s*/?>\s*</div>\s*$',
+                        r'<div>\s*<br\s*/?>\s*</div>\s*$',
+                        r'<div>\s*</div>\s*$',
+                        r'<br\s*/?>\s*$'
+                    ]
 
-                
+                    for pattern in patterns_to_remove:
+                        main_content = re.sub(pattern, '', main_content).rstrip()
+
+                logger.info(repr(text))
 
                 # 4. Добавляем новый форматированный разделитель
-                result = main_content + '<div>----------------</div><div class="text-muted">Сообщение сформировано из электронной почты</div>'
+                result = main_content + '<div>----------------</div><div class="text-muted">Сообщение сформировано из электронной почты от <b>'+ from_email +'!</b></div>'
                 return result
 
+            def is_markdown(text):
+                """
+                Проверяет, содержит ли текст типичные элементы Markdown.
+                Возвращает True, если похоже на Markdown.
+                """
+                # Паттерны Markdown
+                patterns = [
+                    r'^#{1,6}\s+.+',           # Заголовки #, ##, ###
+                    r'^\*\s+.+',                 # Маркированный список (* item)
+                    r'^-{3,}\s*$',             # Горизонтальная линия (---)
+                    r'\*\*.+\*\*',              # Жирный текст (**bold**)
+                    r'\*.+\*',                 # Курсив (*italic*)
+                    r'\[.+\]\(.+\)',           # Ссылки [текст](url)
+                    r'`{1,3}.+`{1,3}',       # Инлайн-код `code` или ```code```
+                ]
+
+                for pattern in patterns:
+                    if re.search(pattern, text, re.MULTILINE):
+                        return True
+                return False
             body = clean_body(body)
 
             # Если после очистки тело пустое — берём хотя бы первую строку
@@ -313,20 +380,23 @@ def CommentsFromEmails():
             messages_uids.append({"message_uid": uid_int})
 
     if messages:
-        User = get_user_model()
-        users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
+        #User = get_user_model()
+        #users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
 
         for index, message in enumerate(messages):
-            message["author_id"] = users.get(message["author_id"])
+            #message["author_id"] = users.get(message["author_id"])
+            message["author_id"] = 104
+            logger.error(f"failed2222: {message['author_id']}")
             if message["author_id"]:
                 last_uid_new = int(messages_uids[index]["message_uid"])
+                logger.error(f"failed2222: {last_uid_new}")
                 try:
                     AppCommentModel.objects.create(**message)
 
                 except Exception as e:
                     logger.error(f"failed: {e}")
                     break
-    logger.error(f"failed2222: {last_uid_new}")
+    #logger.error(f"failed2222: {last_uid_new}")
     if last_uid:
         if 'last_uid_new' in locals() and last_uid_new > last_uid.uid:
             last_uid.success = True
