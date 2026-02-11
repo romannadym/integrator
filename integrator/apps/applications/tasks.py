@@ -186,43 +186,60 @@ def decode_subject(subject):
 
 @app.task
 def CommentsFromEmails():
+    from datetime import date, timedelta
+    import logging
+    from django.utils import timezone
+    from email.utils import parsedate_to_datetime
+    logger = logging.getLogger(__name__)
     try:
         last_uid = EmailLastUID.objects.get(id=1)
     except EmailLastUID.DoesNotExist:
         last_uid = None
 
-    date = (datetime.date.today() - datetime.timedelta(1)).strftime("%d-%b-%Y")
+    since_date_str  = (date.today() - timedelta(days=1)).strftime("%d-%b-%Y")
 
     imap = imaplib.IMAP4_SSL(settings.EMAIL_HOST_IMAP)
     imap.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
 
     imap.select("INBOX", readonly=True)
 
-    search_criteria = ['SINCE', date, 'SUBJECT', u'заявк'.encode('utf-8')]
+    # Если есть последний UID, ищем письма с UID больше него
     if last_uid:
-        search_criteria = ['UID', f"{last_uid.uid}:*", 'SUBJECT', u'заявк'.encode('utf-8')]
+        result, data = imap.uid(
+                'search',
+                None,
+                f'UID {last_uid.uid + 1}:*'
+            )
+    else:
+        result, data = imap.search(
+            None,
+            'SINCE', since_date_str
+        )
 
-    result, data = imap.search(None, *search_criteria)
+    if result != 'OK':
+        logger.error(f"IMAP SEARCH failed: {data}")
+        return
 
     email_uids = data[0].split()
-
     if not email_uids:
-        return HttpResponse('successful')
-
+        logger.info(f"email_uids отсутсвуют")
+        return {'status': 'info', 'message': 'email_uids отсутсвуют'}
     latest_email_uid = int(email_uids[-1])
-    if last_uid and latest_email_uid < last_uid.uid:
-        return HttpResponse('successful')
+    if last_uid and latest_email_uid <= last_uid.uid:
+        logger.info(f"нет подходящих писем для обработки")
+        return {'status': 'info', 'message': 'нет подходящих писем для обработки'}
 
     messages = []
+    messages_uids = []
     successful = True
 
     for message in email_uids:
         result, data = imap.uid("fetch", message, "(RFC822)")
-        raw_email = data[0][1].decode("utf-8")
-        email_message = email.message_from_string(raw_email)
+        raw_email = data[0][1]
+        email_message = email.message_from_bytes(raw_email)
 
         subject = decode_subject(email_message.get("Subject", ""))
-        app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE | re.UNICODE)
+        app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE)
 
         if app_text:
             app_number = app_text.group(1)
@@ -231,46 +248,93 @@ def CommentsFromEmails():
             body = ""
             if email_message.is_multipart():
                 for part in email_message.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get("Content-Disposition"))
-
-                    if "attachment" not in content_disposition and content_type == "text/plain":
-                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                    if part.get_content_type() == "text/plain" and not part.get_filename():
+                        payload = part.get_payload(decode=True)
+                        charset = part.get_content_charset() or "utf-8"
+                        body = payload.decode(charset, errors="ignore")
                         break
             else:
-                body = email_message.get_payload(decode=True).decode("utf-8", errors="ignore")
+                payload = email_message.get_payload(decode=True)
+                charset = email_message.get_content_charset() or "utf-8"
+                body = payload.decode(charset, errors="ignore")
+            # Очищаем тело письма от истории переписки
 
+
+            def clean_body(text):
+                # 1. Находим первый разделитель ----------------
+                # Ищем <div> с разделителем
+                import re
+
+                # Паттерн для поиска div с разделителем
+                divider_pattern = r'<div[^>]*>\s*-{4,}\s*</div>'
+                match = re.search(divider_pattern, text)
+
+                if match:
+                    # Берем текст до разделителя
+                    main_content = text[:match.start()].rstrip()
+                else:
+                    main_content = text.rstrip()
+
+                # 2. Удаляем лишние пустые теги в конце
+                # Список паттернов для удаления
+                patterns_to_remove = [
+                    r'<div>\s*<br\s*/?>\s*</div>\s*<div>\s*<br\s*/?>\s*</div>\s*$',
+                    r'<div>\s*<br\s*/?>\s*</div>\s*$',
+                    r'<div>\s*</div>\s*$',
+                    r'<br\s*/?>\s*$'
+                ]
+
+                for pattern in patterns_to_remove:
+                    main_content = re.sub(pattern, '', main_content).rstrip()
+
+                
+
+                # 4. Добавляем новый форматированный разделитель
+                result = main_content + '<div>----------------</div><div class="text-muted">Сообщение сформировано из электронной почты</div>'
+                return result
+
+            body = clean_body(body)
+
+            # Если после очистки тело пустое — берём хотя бы первую строку
+            if not body:
+                body = lines[0].strip() if lines else ""
+            email_date = parsedate_to_datetime(email_message.get("Date"))
+            if email_date and timezone.is_naive(email_date):
+                email_date = timezone.make_aware(email_date)
+
+            logger.info(repr(body))  # ← здесь вы увидите нормальную кириллицу
+            uid_int = int(message.decode("utf-8"))
             messages.append({
                 "text": body.strip(),
                 "application_id": int(app_number),
                 "author_id": from_email,
-                "email_date": datetime.datetime.strptime(
-                    email_message["Date"], "%a, %d %b %Y %H:%M:%S %z"
-                ),
+                "email_date": email_date
             })
+            messages_uids.append({"message_uid": uid_int})
 
     if messages:
         User = get_user_model()
         users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
 
-        for message in messages:
+        for index, message in enumerate(messages):
             message["author_id"] = users.get(message["author_id"])
             if message["author_id"]:
+                last_uid_new = int(messages_uids[index]["message_uid"])
                 try:
                     AppCommentModel.objects.create(**message)
+
                 except Exception as e:
-                    successful = False
-
-    if successful:
-        if last_uid:
+                    logger.error(f"failed: {e}")
+                    break
+    logger.error(f"failed2222: {last_uid_new}")
+    if last_uid:
+        if 'last_uid_new' in locals() and last_uid_new > last_uid.uid:
             last_uid.success = True
-            last_uid.uid = latest_email_uid + 1
-            last_uid.pubdate = datetime.datetime.now()
+            last_uid.uid = last_uid_new
+            last_uid.pubdate = timezone.now()
             last_uid.save()
-        else:
-            EmailLastUID.objects.create(success=True, uid=latest_email_uid)
-
-    return HttpResponse(successful)
+    elif 'last_uid_new' in locals():
+        EmailLastUID.objects.create(success=True, uid=last_uid_new)
     # if comments:
     #     try:
     #         AppCommentModel.objects.bulk_create([AppCommentModel(**vals) for vals in comments])
