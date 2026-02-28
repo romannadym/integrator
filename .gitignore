@@ -9,6 +9,7 @@
 
 # Исключаем конкретные файлы и папки
 integrator/settings.py
+integrator/celery.py
 static/css/base.css
 integrator/__pycache__/
 integrator/apps/**/__pycache__/

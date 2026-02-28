@@ -16,6 +16,7 @@ from integrator.celery import app
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.db.models import Subquery, OuterRef
+from email_reply_parser import EmailReplyParser
 User = get_user_model()
 
 from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel
@@ -186,91 +187,240 @@ def decode_subject(subject):
 
 @app.task
 def CommentsFromEmails():
+    from datetime import date, timedelta
+    import logging
+    from django.utils import timezone
+    from email.utils import parsedate_to_datetime
+    logger = logging.getLogger(__name__)
     try:
         last_uid = EmailLastUID.objects.get(id=1)
     except EmailLastUID.DoesNotExist:
         last_uid = None
 
-    date = (datetime.date.today() - datetime.timedelta(1)).strftime("%d-%b-%Y")
+    since_date_str  = (date.today() - timedelta(days=1)).strftime("%d-%b-%Y")
 
     imap = imaplib.IMAP4_SSL(settings.EMAIL_HOST_IMAP)
     imap.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
 
     imap.select("INBOX", readonly=True)
 
-    search_criteria = ['SINCE', date, 'SUBJECT', u'заявк'.encode('utf-8')]
+    # Если есть последний UID, ищем письма с UID больше него
     if last_uid:
-        search_criteria = ['UID', f"{last_uid.uid}:*", 'SUBJECT', u'заявк'.encode('utf-8')]
+        result, data = imap.uid(
+                'search',
+                None,
+                f'UID {last_uid.uid + 1}:*'
+            )
+    else:
+        result, data = imap.search(
+            None,
+            'SINCE', since_date_str
+        )
 
-    result, data = imap.search(None, *search_criteria)
+    if result != 'OK':
+        logger.error(f"IMAP SEARCH failed: {data}")
+        return
 
     email_uids = data[0].split()
-
     if not email_uids:
-        return HttpResponse('successful')
-
+        logger.info(f"email_uids отсутсвуют")
+        return {'status': 'info', 'message': 'email_uids отсутсвуют'}
     latest_email_uid = int(email_uids[-1])
-    if last_uid and latest_email_uid < last_uid.uid:
-        return HttpResponse('successful')
+    if last_uid and latest_email_uid <= last_uid.uid:
+        logger.info(f"нет подходящих писем для обработки")
+        return {'status': 'info', 'message': 'нет подходящих писем для обработки'}
 
     messages = []
+    messages_uids = []
     successful = True
 
     for message in email_uids:
         result, data = imap.uid("fetch", message, "(RFC822)")
-        raw_email = data[0][1].decode("utf-8")
-        email_message = email.message_from_string(raw_email)
+        raw_email = data[0][1]
+        email_message = email.message_from_bytes(raw_email)
 
         subject = decode_subject(email_message.get("Subject", ""))
-        app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE | re.UNICODE)
+        subject = decode_subject(email_message.get("Subject", ""))
+        from_email = email.utils.parseaddr(email_message["From"])[1].lower().strip()
+
+        # --- ФИЛЬТРЫ ---
+        if from_email == "mailer-daemon@yandex.ru":
+            logger.info(f"Пропущено служебное письмо от {from_email}")
+            continue
+
+        if "ticketid" in subject.lower():
+            logger.info(f"Пропущено письмо с TicketID в теме: {subject}")
+            continue
+        # ----------------
+        app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE)
 
         if app_text:
             app_number = app_text.group(1)
             from_email = email.utils.parseaddr(email_message["From"])[1]
-
             body = ""
             if email_message.is_multipart():
                 for part in email_message.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get("Content-Disposition"))
-
-                    if "attachment" not in content_disposition and content_type == "text/plain":
-                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                    if part.get_content_type() == "text/plain" and not part.get_filename():
+                        payload = part.get_payload(decode=True)
+                        charset = part.get_content_charset() or "utf-8"
+                        body = payload.decode(charset, errors="ignore")
                         break
             else:
-                body = email_message.get_payload(decode=True).decode("utf-8", errors="ignore")
+                payload = email_message.get_payload(decode=True)
+                charset = email_message.get_content_charset() or "utf-8"
+                body = payload.decode(charset, errors="ignore")
+            # Очищаем тело письма от истории переписки
+            logger.info(f"=========================\n")
+            logger.info(repr(EmailReplyParser.parse_reply(body)))
+            logger.info(f"=========================\n")
 
+            import markdown
+            def clean_body(text):
+                if is_markdown(text):
+                    text = markdown.markdown(text, output_format='html5')
+                # 1. Находим первый разделитель ----------------
+                # Ищем <div> с разделителем
+                # 2. Парсим HTML и ищем первый <blockquote>
+                    soup = BeautifulSoup(text, 'html.parser')
+                    blockquote = soup.find('blockquote')
+
+                    if blockquote:
+                        # Находим позицию первого <blockquote> в исходном HTML
+                        blockquote_start = str(soup).find(str(blockquote))
+                        # Берём текст ДО <blockquote>
+                        main_content = text[:blockquote_start].strip()
+                    else:
+                        main_content = text.strip()
+
+                    # 3. Очищаем оставшуюся часть от HTML-тегов и мусора
+                    soup_clean = BeautifulSoup(main_content, 'html.parser')
+
+                    # Удаляем пустые теги (<div></div>, <p></p> и т.п.)
+                    for empty in soup_clean.find_all():
+                        if not empty.get_text(strip=True) and not empty.name in ['br', 'hr']:
+                            empty.decompose()
+
+                    main_content = str(soup_clean)
+
+                    # 4. Удаляем оставшиеся HTML-теги, сохраняя текст
+                    soup_text = BeautifulSoup(main_content, 'html.parser')
+                    main_content = soup_text.get_text(separator=' ', strip=True)
+
+                    # 5. Нормализуем пробелы и переносы
+                    main_content = re.sub(r'\s+', ' ', main_content).strip()
+
+                    # Удаляем возможные остатки \n, \r
+                    main_content = main_content.replace('\n', ' ').replace('\r', ' ').strip()
+
+                    # 6. Удаляем подписи (если остались)
+                    signature_patterns = [
+                        r'С\s+уважением[,:]?\s*[^<]+(?:\s+[\w\.-]+@[\w\.-]+\.[a-z]{2,})?',
+                        r'[\w\.-]+@[\w\.-]+\.[a-z]{2,}\s+С\s+уважением',
+                        r'Отправлено из[^<]*',
+                        r'Best regards[^<]*',
+                        r'Kind regards[^<]*'
+                    ]
+                    for pattern in signature_patterns:
+                        main_content = re.sub(pattern, '', main_content, flags=re.IGNORECASE)
+
+
+                    # 7. Финальная очистка пробелов
+                    main_content = re.sub(r'\s+', ' ', main_content).strip()
+
+                else:
+                    # Паттерн для поиска div с разделителем если html изначально
+                    divider_pattern = r'<div[^>]*>\s*-{4,}\s*</div>'
+                    match = re.search(divider_pattern, text)
+
+                    if match:
+                        # Берем текст до разделителя
+                        main_content = text[:match.start()].rstrip()
+                    else:
+                        main_content = text.rstrip()
+
+                    # 2. Удаляем лишние пустые теги в конце
+                    # Список паттернов для удаления
+                    patterns_to_remove = [
+                        r'<div>\s*<br\s*/?>\s*</div>\s*<div>\s*<br\s*/?>\s*</div>\s*$',
+                        r'<div>\s*<br\s*/?>\s*</div>\s*$',
+                        r'<div>\s*</div>\s*$',
+                        r'<br\s*/?>\s*$'
+                    ]
+
+                    for pattern in patterns_to_remove:
+                        main_content = re.sub(pattern, '', main_content).rstrip()
+
+                logger.info(repr(text))
+
+                # 4. Добавляем новый форматированный разделитель
+                result = main_content + '<div>----------------</div><div class="text-muted">Сообщение сформировано из электронной почты от <b>'+ from_email +'!</b></div>'
+                return result
+
+            def is_markdown(text):
+                """
+                Проверяет, содержит ли текст типичные элементы Markdown.
+                Возвращает True, если похоже на Markdown.
+                """
+                # Паттерны Markdown
+                patterns = [
+                    r'^#{1,6}\s+.+',           # Заголовки #, ##, ###
+                    r'^\*\s+.+',                 # Маркированный список (* item)
+                    r'^-{3,}\s*$',             # Горизонтальная линия (---)
+                    r'\*\*.+\*\*',              # Жирный текст (**bold**)
+                    r'\*.+\*',                 # Курсив (*italic*)
+                    r'\[.+\]\(.+\)',           # Ссылки [текст](url)
+                    r'`{1,3}.+`{1,3}',       # Инлайн-код `code` или ```code```
+                ]
+
+                for pattern in patterns:
+                    if re.search(pattern, text, re.MULTILINE):
+                        return True
+                return False
+            body = clean_body(EmailReplyParser.parse_reply(body))
+
+            # Если после очистки тело пустое — берём хотя бы первую строку
+            if not body:
+                body = lines[0].strip() if lines else ""
+            email_date = parsedate_to_datetime(email_message.get("Date"))
+            if email_date and timezone.is_naive(email_date):
+                email_date = timezone.make_aware(email_date)
+
+            logger.info(repr(body))  # ← здесь вы увидите нормальную кириллицу
+            uid_int = int(message.decode("utf-8"))
             messages.append({
                 "text": body.strip(),
                 "application_id": int(app_number),
                 "author_id": from_email,
-                "email_date": datetime.datetime.strptime(
-                    email_message["Date"], "%a, %d %b %Y %H:%M:%S %z"
-                ),
+                "email_date": email_date
             })
+            messages_uids.append({"message_uid": uid_int})
 
     if messages:
-        User = get_user_model()
-        users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
+        #User = get_user_model()
+        #users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
 
-        for message in messages:
-            message["author_id"] = users.get(message["author_id"])
+        for index, message in enumerate(messages):
+            #message["author_id"] = users.get(message["author_id"])
+            message["author_id"] = 119
+            #logger.error(f"failed2222: {message['author_id']}")
             if message["author_id"]:
+                last_uid_new = int(messages_uids[index]["message_uid"])
+                logger.error(f"failed2222: {last_uid_new}")
                 try:
                     AppCommentModel.objects.create(**message)
+
                 except Exception as e:
-                    successful = False
-
-    if successful:
-        if last_uid:
+                    logger.error(f"failed: {e}")
+                    break
+    #logger.error(f"failed2222: {last_uid_new}")
+    if last_uid:
+        if 'last_uid_new' in locals() and last_uid_new > last_uid.uid:
             last_uid.success = True
-            last_uid.uid = latest_email_uid + 1
-            last_uid.pubdate = datetime.datetime.now()
+            last_uid.uid = last_uid_new
+            last_uid.pubdate = timezone.now()
             last_uid.save()
-        else:
-            EmailLastUID.objects.create(success=True, uid=latest_email_uid)
-
-    return HttpResponse(successful)
+    elif 'last_uid_new' in locals():
+        EmailLastUID.objects.create(success=True, uid=last_uid_new)
     # if comments:
     #     try:
     #         AppCommentModel.objects.bulk_create([AppCommentModel(**vals) for vals in comments])
