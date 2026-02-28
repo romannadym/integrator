@@ -16,6 +16,7 @@ from integrator.celery import app
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.db.models import Subquery, OuterRef
+from email_reply_parser import EmailReplyParser
 User = get_user_model()
 
 from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel
@@ -270,8 +271,9 @@ def CommentsFromEmails():
                 body = payload.decode(charset, errors="ignore")
             # Очищаем тело письма от истории переписки
             logger.info(f"=========================\n")
-            logger.info(repr(body))
+            logger.info(repr(EmailReplyParser.parse_reply(body)))
             logger.info(f"=========================\n")
+
             import markdown
             def clean_body(text):
                 if is_markdown(text):
@@ -374,7 +376,7 @@ def CommentsFromEmails():
                     if re.search(pattern, text, re.MULTILINE):
                         return True
                 return False
-            body = clean_body(body)
+            body = clean_body(EmailReplyParser.parse_reply(body))
 
             # Если после очистки тело пустое — берём хотя бы первую строку
             if not body:

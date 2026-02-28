@@ -17,38 +17,38 @@
     </div>
 </div>
 <script type="text/javascript">
-  $('#deleteOrder').on('show.bs.modal', function (event) {
+  $(document).ready(function() {
+    // 1. При открытии модалки только обновляем текст
+    $('#deleteOrder').on('show.bs.modal', function (event) {
+        let ticket_id = $('#ticket_id').val();
+        $(this).find('h4').text(`Вы собираетесь удалить заявку #${ticket_id}?`);
+    });
 
-     const modal = $(this);
-    let ticket_id = $('#ticket_id').val();
-        // Если хочешь вставить ID в заголовок или текст:
-        modal.find('h4').text(`Вы собираетесь удалить заявку #${ticket_id}?`);
+    // 2. Обработчик клика вешаем ОДИН РАЗ (используем делегирование)
+    $(document).on('click', '#delete-record', function() {
+        let ticket_id = $('#ticket_id').val();
+        let modal = $('#deleteOrder');
+        let submitButton = $(this);
 
+        // Проверка, чтобы не нажать дважды, пока идет запрос
+        if (submitButton.prop('disabled')) return;
 
+        let originalText = submitButton.html();
+        let buttonWidth = submitButton.outerWidth();
+        let buttonHeight = submitButton.outerHeight();
 
-        $('#delete-record').off('click').on('click', () => {
-          // Блокируем кнопку отправки
-          let submitButton = $('#delete-record'); // Убедитесь, что у кнопки отправки есть id='submit-button'
-          submitButton.prop('disabled', true);
-          // Сохраняем текст, если надо восстановить потом
-          let originalText = submitButton.html();
-
-          // Блокируем и добавляем фиксированные размеры
-          let buttonWidth = submitButton.outerWidth();
-          let buttonHeight = submitButton.outerHeight();
-
-          submitButton.prop('disabled', true).css({
+        submitButton.prop('disabled', true).css({
             width: buttonWidth,
             height: buttonHeight
-          }).html(`
+        }).html(`
             <span class="d-flex justify-content-center align-items-center w-100 h-100">
-              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
             </span>
-          `);
-          deleteApplication(ticket_id, modal, submitButton, originalText)
-        });
+        `);
 
-      })
+        deleteApplication(ticket_id, modal, submitButton, originalText);
+    });
+});
 
       function deleteApplication(itemId, modal, submitButton, originalText) {
           $.ajax({
