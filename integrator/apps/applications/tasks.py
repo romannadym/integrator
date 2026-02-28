@@ -239,6 +239,18 @@ def CommentsFromEmails():
         email_message = email.message_from_bytes(raw_email)
 
         subject = decode_subject(email_message.get("Subject", ""))
+        subject = decode_subject(email_message.get("Subject", ""))
+        from_email = email.utils.parseaddr(email_message["From"])[1].lower().strip()
+
+        # --- ФИЛЬТРЫ ---
+        if from_email == "mailer-daemon@yandex.ru":
+            logger.info(f"Пропущено служебное письмо от {from_email}")
+            continue
+
+        if "ticketid" in subject.lower():
+            logger.info(f"Пропущено письмо с TicketID в теме: {subject}")
+            continue
+        # ----------------
         app_text = re.search(r"заявк. № (\d+)", subject, re.IGNORECASE)
 
         if app_text:
@@ -257,7 +269,9 @@ def CommentsFromEmails():
                 charset = email_message.get_content_charset() or "utf-8"
                 body = payload.decode(charset, errors="ignore")
             # Очищаем тело письма от истории переписки
-
+            logger.info(f"=========================\n")
+            logger.info(repr(body))
+            logger.info(f"=========================\n")
             import markdown
             def clean_body(text):
                 if is_markdown(text):
@@ -312,7 +326,7 @@ def CommentsFromEmails():
                     main_content = re.sub(r'\s+', ' ', main_content).strip()
 
                 else:
-                    # Паттерн для поиска div с разделителем если html изначально 
+                    # Паттерн для поиска div с разделителем если html изначально
                     divider_pattern = r'<div[^>]*>\s*-{4,}\s*</div>'
                     match = re.search(divider_pattern, text)
 
