@@ -401,8 +401,8 @@ def CommentsFromEmails():
 
         for index, message in enumerate(messages):
             #message["author_id"] = users.get(message["author_id"])
-            message["author_id"] = 104
-            logger.error(f"failed2222: {message['author_id']}")
+            message["author_id"] = 119
+            #logger.error(f"failed2222: {message['author_id']}")
             if message["author_id"]:
                 last_uid_new = int(messages_uids[index]["message_uid"])
                 logger.error(f"failed2222: {last_uid_new}")
