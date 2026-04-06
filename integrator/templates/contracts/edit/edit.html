@@ -37,7 +37,7 @@
                           name="{{ field.name }}"
                           value="{{ field.value|date:'d.m.Y'|default_if_none:'' }}"
                       >
-                  {% elif field.name != 'client' and field.name != 'end_users' %}
+                  {% elif field.name != 'client' and field.name != 'end_user_organization' %}
                       <input
                           type="text"
                           class="form-control"
@@ -143,22 +143,22 @@
                return markup;
            }
      });
-     $('#id_end_users').select2({
+     $('#id_end_user_organization').select2({
          ajax: {
              // Правильное чтение data-ajax--url
-             url: $('#id_end_users').attr('data-ajax--url'),
+             url: $('#id_end_user_organization').attr('data-ajax--url'),
 
              // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
              data: function(params) {
                  return {
                      term: params.term,
                      _type: 'query',
-                     field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                     field_id: $('#id_end_user_organization').attr('data-field_id')  // или .data('field_id')
                  };
              },
 
              // Дополнительные параметры из data-атрибутов
-             cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+             cache: $('#id_end_user_organization').attr('data-ajax--cache') === 'true',
              dataType: 'json',
              delay: 250,
              processResults: function(data) {
@@ -168,9 +168,9 @@
          },
 
          // Другие настройки из data-атрибутов
-         minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
-         theme: $('#id_end_users').attr('data-theme'),
-         allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+         minimumInputLength: parseInt($('#id_end_user_organization').attr('data-minimum-input-length')),
+         theme: $('#id_end_user_organization').attr('data-theme'),
+         allowClear: $('#id_end_user_organization').attr('data-allow-clear') === 'true',
          language: {
               noResults: function() {
              return `<button  type="button"
