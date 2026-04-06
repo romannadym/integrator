@@ -38,7 +38,7 @@ from spares.models import SpareModel
 
 from spares.api.api import SparesListAPIView
 
-from accounts.api.api import ContactsListAPIView
+from accounts.api.api import ContactsListAPIView, OrganizationsListAPIView
 
 from integrator.apps.api_services import EngineersListAPIView
 from applications.api.serializers import *
@@ -542,8 +542,21 @@ class ApplicationsListAPIViewNew(APIView):
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
                 organization_id = F('equipment__contract__client__organization__id'),
                 organization_name = F('equipment__contract__client__organization__name'),
-                end_user_organization_id = F('equipment__contract__end_users__organization__id'),
-                end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                end_user_organization_id = Coalesce(
+                    F('contract__contractenduser__organization__id'), # Новое поле в связи
+                    F('equipment__contract__end_users__organization__id')        # Старое поле в профиле юзера
+                ),
+
+                # 2. Аналогично для названия организации
+                end_user_organization_name = Func(
+                    Coalesce(
+                        F('contract__contractenduser__organization__name'),
+                        F('equipment__contract__end_users__organization__name')
+                    ),
+                    Value(''),
+                    function='IFNULL',
+                    output_field=CharField()
+                ),
                 engineers_list=Subquery(
                     ApplicationModel.objects
                     .filter(pk=OuterRef('pk'))
@@ -1080,7 +1093,7 @@ class AddApplicationAPIView(APIView): #Создание заявки
                 unique_clients.append(client)
 
         data['clients'] = unique_clients
-
+        data['organization'] = OrganizationsListAPIView().get(request).data
         return Response(data, status = status.HTTP_200_OK)
 
     @extend_schema(

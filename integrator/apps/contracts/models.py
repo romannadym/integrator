@@ -22,14 +22,24 @@ class ContractModel(models.Model):
         on_delete=models.SET_NULL, null=True, related_name="clients"
     )
     end_users = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, verbose_name='Конечные пользователи',
-        related_name="endusers", blank=True
+        settings.AUTH_USER_MODEL,
+        through='ContractEndUser', # Указываем промежуточную модель
+        verbose_name='Конечные пользователи',
+        related_name="endusers",
+        blank=True
     )
     dc_address = models.CharField('Адрес ЦОД', max_length=250, null=True, blank=True)
     signed = models.DateField('Начало договора')
     enddate = models.DateField('Окончание договора')
     link = models.CharField('Ссылка на договор', max_length=250, null=True, blank=True)
-
+    organization = models.ForeignKey(
+        'accounts.OrganizationModel', # Укажи здесь правильный путь к модели организации
+        verbose_name='Организация',
+        on_delete=models.SET_NULL, # Если организацию удалят, контракт останется
+        related_name='contracts',   # Позволит найти все контракты организации: org.contracts.all()
+        null=True,
+        blank=True
+    )
     def __str__(self):
         client_name = str(self.client.organization) if self.client else "Неизвестный заказчик"
         return f"№{self.number} от {self.signed.strftime('%d.%m.%Y')} ({client_name})"
@@ -39,6 +49,28 @@ class ContractModel(models.Model):
         verbose_name_plural = 'Договоры'
         ordering = ['number', 'client__organization__name']
 
+class ContractEndUser(models.Model):
+    contractmodel = models.ForeignKey(
+        'ContractModel',
+        on_delete=models.CASCADE
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+    organization = models.ForeignKey(
+        'accounts.OrganizationModel',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Организация конечного пользователя'
+    )
+
+    class Meta:
+        # Указываем имя таблицы, которое уже есть в БД,
+        # чтобы Django не пытался создать новую, а "подцепил" старую
+        db_table = 'contracts_contractmodel_end_users'
+        unique_together = ('contractmodel', 'user')
 
 class ContractEquipmentModel(models.Model):
     equipment = models.ForeignKey(EquipmentModel, verbose_name = 'Оборудование', on_delete = models.CASCADE)

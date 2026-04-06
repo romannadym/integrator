@@ -241,7 +241,7 @@
                 {
                   data: 'id',
                   render: function(data, type, row) {
-
+                      console.log(row)
                       // Создание ссылки на страницу деталей заявки с использованием id
                       return `<a href="/applications/edit/${data}" class="fw-medium link-primary ticket-id">#${data}</a>`;
                   }

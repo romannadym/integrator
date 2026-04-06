@@ -166,11 +166,17 @@
           url: '/applications/api/add/',
           type: 'GET',
           success: function(data) {
-            if(data.clients){
+            console.log(data)
+            if(data.organization.results){
+              data.organization.results.forEach(function(item) {
+                  $('#id_client').append(`<option value="${item.id}">${item.text}</option>`)
+              })
+            }
+            /*if(data.clients){
               data.clients.forEach(function(item) {
                   $('#id_client').append(`<option value="${item.id}">${item.organization_name}</option>`)
               })
-            }
+            }*/
 
             if(data.priorities){
               data.priorities.forEach(function(item) {
