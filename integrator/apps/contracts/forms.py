@@ -48,17 +48,25 @@ class ContractForm(forms.ModelForm):
         widget=s2forms.ModelSelect2Widget(
             model=OrganizationModel,
             search_fields=['name__icontains'],
-            attrs={'class': 'form-select', 'data-minimum-input-length': 0}
+            attrs={'class': 'form-select', 'data-minimum-input-length': 0, 'data-allow-clear': 'false'}
         ),
         required=False
     )
     class Meta:
         model = ContractModel
         # Исключаем end_users из автоматической обработки, так как мы добавили кастомное поле end_user
-        exclude = ('end_users','organization')
+        exclude = ('end_users', 'client')
         fields = '__all__'
+        labels = {
+        'organization': 'Заказчик (Организация)',
+        }
         widgets = {
-            'client': ClientWidget(attrs = {'data-minimum-input-length': 0, 'class': 'js-example-basic-single form-select'}, queryset = User.objects.filter(Q(groups__name = 'Заказчик') & Q(is_active = True))),
+            'organization': s2forms.ModelSelect2Widget(
+                model=OrganizationModel,
+                queryset=OrganizationModel.objects.all(),
+                search_fields=['name__icontains'],
+                attrs={'class': 'form-control', 'data-minimum-input-length': 0, 'data-allow-clear': 'false'}
+            ),
             # 'client': forms.Select(queryset = User.objects.filter(Q(is_active = True) & ~Q(email = 'serindework@mail.ru'))),
             'signed': forms.DateInput(attrs = {'class': 'date'}),
             'enddate': forms.DateInput(attrs = {'class': 'date'}),

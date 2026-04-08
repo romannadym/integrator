@@ -41,13 +41,13 @@ class ContractModel(models.Model):
         blank=True
     )
     def __str__(self):
-        client_name = str(self.client.organization) if self.client else "Неизвестный заказчик"
+        client_name = str(self.organization) if self.organization else "Неизвестный заказчик"
         return f"№{self.number} от {self.signed.strftime('%d.%m.%Y')} ({client_name})"
 
     class Meta:
         verbose_name = 'Договор'
         verbose_name_plural = 'Договоры'
-        ordering = ['number', 'client__organization__name']
+        ordering = ['number', 'organization__name']
 
 class ContractEndUser(models.Model):
     contractmodel = models.ForeignKey(

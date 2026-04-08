@@ -235,7 +235,7 @@ class ContractsListAPIView(APIView):
 
         # Базовый запрос
         queryset = ContractModel.objects.annotate(
-            organization_name=F('client__organization__name')
+            organization_name=F('organization__name')
         ).values('id', 'number', 'organization_name', 'signed', 'enddate')
 
         # Применяем поиск
@@ -479,7 +479,7 @@ class EqContractsEditAPIView(APIView):
                     serializer.errors,
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             # 4. Обновляем только уровень поддержки
             updated_equipment = serializer.save()
 

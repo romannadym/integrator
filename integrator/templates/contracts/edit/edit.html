@@ -37,7 +37,7 @@
                           name="{{ field.name }}"
                           value="{{ field.value|date:'d.m.Y'|default_if_none:'' }}"
                       >
-                  {% elif field.name != 'client' and field.name != 'end_user_organization' %}
+                  {% elif field.name != 'organization' and field.name != 'end_user_organization' %}
                       <input
                           type="text"
                           class="form-control"
@@ -102,22 +102,22 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
   <script type="text/javascript">
     $(document).ready(function () {
-       $('#id_client').select2({
+       $('#id_organization').select2({
            ajax: {
                // Правильное чтение data-ajax--url
-               url: $('#id_client').attr('data-ajax--url'),
+               url: $('#id_organization').attr('data-ajax--url'),
 
                // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
                data: function(params) {
                    return {
                        term: params.term,
                        _type: 'query',
-                       field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                       field_id: $('#id_organization').attr('data-field_id')  // или .data('field_id')
                    };
                },
 
                // Дополнительные параметры из data-атрибутов
-               cache: $('#id_client').attr('data-ajax--cache') === 'true',
+               cache: $('#id_organization').attr('data-ajax--cache') === 'true',
                dataType: 'json',
                delay: 250,
                processResults: function(data) {
@@ -127,9 +127,9 @@
            },
 
            // Другие настройки из data-атрибутов
-           minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
-           theme: $('#id_client').attr('data-theme'),
-           allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+           minimumInputLength: parseInt($('#id_organization').attr('data-minimum-input-length')),
+           theme: $('#id_organization').attr('data-theme'),
+           allowClear: $('#id_organization').attr('data-allow-clear') === 'true',
            language: {
                 noResults: function() {
                return `<button  type="button"

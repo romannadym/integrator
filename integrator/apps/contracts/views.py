@@ -155,7 +155,7 @@ def EditContractView(request, contract_id):
                     # Если организация не выбрана — удаляем связь
                     ContractEndUser.objects.filter(contractmodel=contract).delete()
                 # -------------------------------
-
+                contract.save()
                 formset.save()
                 return redirect('list-contracts')
 
