@@ -49,7 +49,7 @@
                         <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Контактное лицо:</h6>
-                            <select class="js-example-basic-single" name="contact" id="id_contact" required>
+                            <select class="js-example-basic-single" name="contact_user" id="id_contact_user" required>
                                 <option value=""></option>
                             </select>
                         </div>
@@ -199,12 +199,13 @@
                   data: { client: client_id },
                   dataType: 'json',
                   success: function(result) {
-                    $('#id_contact').empty()
+                    $('#id_contact_user').empty()
+                    console.log(result)
                       if(Array.isArray(result.data) && result.data.length > 0){
                         result.data.forEach(function (item){
-                          $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
+                          $('#id_contact_user').append(`<option value="${item.id}" >${item.last_name} ${item.first_name}</option>`)
                         })
-                        $('#id_contact').val(result.data[0].id)
+                        $('#id_contact_user').val(result.data[0].id)
 
                       }
                     //  console.log(result)
@@ -226,13 +227,13 @@
               data: { client: client_id },
               dataType: 'json',
               success: function(result) {
-                $('#id_contact').empty()
+                $('#id_contact_user').empty()
 
                   if(Array.isArray(result.data) && result.data.length > 0){
                     result.data.forEach(function (item){
-                      $('#id_contact').append(`<option value="${item.id}" >${item.fio}</option>`)
+                      $('#id_contact_user').append(`<option value="${item.id}" >${item.fio}</option>`)
                     })
-                    $('#id_contact').val(result.data[0].id)
+                    $('#id_contact_user').val(result.data[0].id)
 
                   }
 
@@ -275,7 +276,7 @@
         placeholder: "-------"
       });
 
-      $('#id_contact').select2({
+      $('#id_contact_user').select2({
         dropdownParent: $('#showModalCreateTicket'),
         placeholder: "-------"
       });
@@ -288,7 +289,7 @@
           $('#id_client').val(null).trigger('change');
           $('#id_priority').val(3).trigger('change');
           $('#id_equipment').val(null).trigger('change');
-          $('#id_contact').val(null).trigger('change');
+          $('#id_contact_user').val(null).trigger('change');
           // Очистка временных файлов
           if (uploadedFiles.length > 0) {
               fetch('/applications/api/clear-temp/', {

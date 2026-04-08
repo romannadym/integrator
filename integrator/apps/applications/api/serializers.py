@@ -56,7 +56,7 @@ class AddApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ApplicationModel
-        fields = ['priority', 'problem', 'contact', 'client', 'equipment', 'engineers', 'status', 'creator', 'documents']#
+        fields = ['priority', 'problem', 'contact', 'cintact_user', 'contract', 'client', 'equipment', 'engineers', 'status', 'creator', 'documents']#
 
     def create(self, validated_data):
         documents = self.context['request'].data.getlist('documents')
@@ -93,7 +93,7 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
         model = ApplicationModel
         fields = [
             'id', 'formatted_date', 'status_id', 'status_name', 'priority_id', 'priority_name',
-            'engineers', 'engineer_names', 'client_id', 'contact_id', 'contact_name', 'contact_email', 'contact_phone',
+            'engineers', 'engineer_names', 'client_id', 'contact_user_id', 'contact_name', 'contact_email', 'contact_phone',
             'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents',
             'asset_brand_name', 'asset_model_name', 'asset_type_name', 'asset_serial_name'
         ]

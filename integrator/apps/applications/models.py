@@ -96,7 +96,6 @@ class ApplicationModel(models.Model):
     priority = models.ForeignKey(AppPriorityModel, verbose_name = 'Приоритет заявки', on_delete = models.PROTECT, related_name = "priorities", null = True)
     equipment = models.ForeignKey(ContractEquipmentModel, verbose_name = 'Оборудование', on_delete = models.PROTECT, related_name = "equipments", null = True)
     problem = models.TextField('Описание проблемы')
-    contact = models.ForeignKey(OrganizationContactModel, verbose_name = 'Контактное лицо', on_delete = models.SET_NULL, related_name = "appcontact", null = True)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Заказчик', on_delete = models.PROTECT, related_name = "appclients", null = True)
     engineers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,

@@ -1212,9 +1212,9 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             ),
             status_name=F('status__name'),
             priority_name=F('priority__name'),
-            contact_name=F('contact__fio'),
-            contact_email=F('contact__email'),
-            contact_phone=F('contact__phone'),
+            contact_name=F('contact_user__last_name'),
+            contact_email=F('contact_user__email'),
+            contact_phone=F('contact_user__phone'),
             support_level=F('equipment__support__name'),
             vendor_name=Case(
                 When(
@@ -1236,15 +1236,15 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             asset_model_name = F('equipment__equipment__model__name'),
             asset_type_name = F('equipment__equipment__type__name'),
             asset_serial_name = F('equipment__sn'),
-            end_user_organization_id=F('equipment__contract__end_users__organization__id'),
+            end_user_organization_id=F('contract__end_users__organization__id'),
             end_user_organization_name=Func(
-                F('equipment__contract__end_users__organization__name'),
+                F('contract__end_users__organization__name'),
                 Value(''),
                 function='IFNULL',
                 output_field=CharField()
             ),
             contract_number=Func(
-                F('equipment__contract__number'),
+                F('contract__number'),
                 Value(''),
                 function='IFNULL',
                 output_field=CharField()
@@ -1425,7 +1425,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         }
 
         # Отправка контактному лицу
-        if send_email(params, 'Изменение статуса заявки', [application.contact.email]):
+        if send_email(params, 'Изменение статуса заявки', [application.contact_user.email]):
             history.append({
                 'type': 3,
                 'text': f'Уведомление об изменении статуса заявки на "{status.name}" отправлено контактному лицу',
@@ -1462,7 +1462,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         }
 
         # Отправка контактному лицу
-        if send_email(params, 'Изменение приоритета заявки', [application.contact.email]):
+        if send_email(params, 'Изменение приоритета заявки', [application.contact_user.email]):
             history.append({
                 'type': 3,
                 'text': f'Уведомление об изменении приоритета заявки "{priority.name}" отправлено контактному лицу',
@@ -1518,7 +1518,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         if not request.user.groups.filter(name = 'Администратор').exists():
             return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
 
-        application = ApplicationModel.objects.annotate(email = F('contact__email')).get(id = application_id)
+        application = ApplicationModel.objects.annotate(email = F('contact_user__email')).get(id = application_id)
         email = application.email
         application.delete()
 
@@ -1566,7 +1566,7 @@ class EditDoneApplicationAPIView(APIView): #Редактирование зая�
     )
     def patch(self, request, application_id, status_id, *args, **kwargs):
         application = ApplicationModel.objects.annotate(
-            email = F('contact__email'),
+            email = F('contact_user__email'),
             engineer_email = F('engineer__email'),
             organization_id = F('client__organization_id')
         ).get(id = application_id)
@@ -1980,9 +1980,9 @@ class ApplicationDetailsAPIView(APIView): #Детальная информаци
                 ),
                 When(engineer__last_name = '', then = F('engineer__email')),
                 default = Value(''), output_field = CharField()),
-            contact_name = F('contact__fio'),
-            contact_email = F('contact__email'),
-            contact_phone = Func(F('contact__phone'), Value(''), function = 'IFNULL', output_field = CharField()),
+            contact_name = F('contact_user__first_name'),
+            contact_email = F('contact_user__email'),
+            contact_phone = Func(F('contact_user__phone'), Value(''), function = 'IFNULL', output_field = CharField()),
             equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n: '), 'equipment__sn', Value(')')),
             support_id = F('equipment__support_id'),
             support_name = F('equipment__support__name'),
