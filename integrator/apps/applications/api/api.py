@@ -465,10 +465,10 @@ class ApplicationsListAPIView(APIView):
                 equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value(' (S/n:'), 'equipment__sn', Value(')')),
                 status_name = F('status__name'),
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
-                organization_id = F('equipment__contract__client__organization__id'),
-                organization_name = F('equipment__contract__client__organization__name'),
-                end_user_organization_id = F('equipment__contract__end_users__organization__id'),
-                end_user_organization_name = Func(F('equipment__contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
+                organization_id = F('contract__organization__id'),
+                organization_name = F('contract__organization__name'),
+                end_user_organization_id = F('contract__end_users__organization__id'),
+                end_user_organization_name = Func(F('contract__end_users__organization__name'), Value(''), function = 'IFNULL', output_field = CharField()),
                 formatted_date = Func(
                     Func(F('pubdate'), Value('+00:00'), Value('+03:00'), function = 'CONVERT_TZ', output_field = CharField()),
                     Value('%d.%m.%Y %H:%i'), function = 'DATE_FORMAT', output_field = CharField()
