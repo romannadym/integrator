@@ -61,7 +61,7 @@
                         <tr>
                             <td class="fw-medium"><b>Контактные данные по заявке:</b></td>
                             <td>
-                                {% if data.application.contact_user_id %}{{ data.application.contact_name }} <a href="mailto:{{ data.application.contact_email }}">{{ data.application.contact_email }}</a> {{ data.application.contact_phone|default_if_none:'' }}{% endif %}
+                                {% if data.application.contact_user_id %}{{ data.application.contact_name }}<br> <a href="mailto:{{ data.application.contact_email }}">{{ data.application.contact_email }}</a><br>  {{ data.application.contact_phone|default_if_none:'' }}{% endif %}
                             </td>
                         </tr>
                         <tr>

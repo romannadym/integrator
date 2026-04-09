@@ -1212,6 +1212,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             ),
             status_name=F('status__name'),
             priority_name=F('priority__name'),
+            contact_id=F('contact_user__id'),
             contact_name=F('contact_user__last_name'),
             contact_email=F('contact_user__email'),
             contact_phone=F('contact_user__phone'),
@@ -1251,6 +1252,24 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             ),
         ).get(id=application_id)
 
+        User = get_user_model()
+        client_contacts = []
+
+        # Находим организацию заказчика (через поле client в заявке)
+        if application.contract and application.contract.organization:
+            org_id = application.contract.organization.id
+            # Получаем всех пользователей этой организации
+            contacts_qs = User.objects.filter(organization_id=org_id, is_active=True)
+
+            # Формируем список (можно вынести в отдельный сериализатор)
+            for user in contacts_qs:
+                fio = f"{user.last_name} {user.first_name}".strip()
+                client_contacts.append({
+                    'id': user.id,
+                    'full_name': fio if fio else user.email,
+                    'email': user.email
+                })
+
         serializer = ApplicationDetailsSerializer(application)
         if permissions['is_staff']:
             history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
@@ -1287,7 +1306,8 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'permissions': permissions,
             'statuses': Statuses,
             'priorities': Priority,
-            'engineers': Engineers
+            'engineers': Engineers,
+            'client_contacts': client_contacts,
         }, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -1344,7 +1364,23 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'status': app_status_name,
             'type': 'edit'
         }
+        new_contact_id = data.get('contact_user')
+        if new_contact_id and int(new_contact_id) != application.contact_user_id:
+            try:
+                new_contact = User.objects.get(id=new_contact_id)
+                fio = f"{new_contact.last_name} {new_contact.first_name}".strip()
+                contact_display = fio if fio else new_contact.email
 
+                history.append({
+                    'type': 2,
+                    'text': f'Изменено контактное лицо на "{contact_display}"',
+                    'application': application,
+                    'author': request.user
+                })
+                # Мы можем либо оставить это для сериализатора, либо обновить вручную
+                application.contact_user = new_contact
+            except User.DoesNotExist:
+                return Response({'message': 'Указанный контакт не найден'}, status=status.HTTP_400_BAD_REQUEST)
         # Обработка изменений статуса
         if application.status_id != data.get('status'):
             app_status = StatusModel.objects.get(id=data['status'])

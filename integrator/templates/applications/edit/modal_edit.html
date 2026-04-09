@@ -48,9 +48,19 @@
                         </div>
                         <!--end col-->
                         <div class="col-lg-12">
+                            <h6 class="fw-semibold">Контактное лицо:</h6>
+                            <select class="js-example-basic-single" name="contact_user" id="id_contact_user" required>
+                                {% for contact in data.client_contacts %}
+                                  <option value="{{ contact.id }}" {% if contact.id == data.application.contact_id %} selected {% endif %}>{{ contact.full_name }} </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-lg-12">
                             <h6 class="fw-semibold">Описание проблемы:</h6>
                             <textarea class="form-control" name="problem" id="t-problem" rows="12" {% if data.application.status_id == 4 %} disabled="true" {% endif %} required>{{ data.application.problem }}</textarea>
                         </div>
+                        <!--end col-->
 
                     </div>
                     <!--end row-->
@@ -74,6 +84,7 @@
     $('#t-status').select2();
     $('#t-priority').select2();
     $('#t-engineer').select2();
+    $('#id_contact_user').select2();
     $.ajax({
         url: '/applications/add/',
         method: 'POST',
@@ -128,7 +139,8 @@
       priority: $('#t-priority').val(),
       problem: $('#t-problem').val(),
       equipment_str: $('#t-equipments').val(),
-      status: Number($('#t-status').val())
+      status: Number($('#t-status').val()),
+      contact_user: Number($('#id_contact_user').val())
     }
     if ($('#t-engineer').val()) {
         data.engineers = $('#t-engineer').val(); // добавляем engineer, если есть значение

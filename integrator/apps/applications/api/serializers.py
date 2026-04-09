@@ -138,7 +138,7 @@ class EditApplicationSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = ApplicationModel
-        fields = ['engineers', 'priority', 'status', 'equipment', 'problem']
+        fields = ['engineers', 'priority', 'status', 'equipment', 'problem', 'contact_user']
 
 class AddAppDocumentsSerializer(serializers.ModelSerializer):
     documents = AppDocumentsSerializer(many = True, required = False)
