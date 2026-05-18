@@ -1271,23 +1271,25 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
                 })
 
         serializer = ApplicationDetailsSerializer(application)
-        if permissions['is_staff']:
-            history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
-            history_sorted = sorted(history, key=lambda x: x['pubdate'])
-        else:
+        #if permissions['is_staff']:
+        history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
+        history_sorted = sorted(history, key=lambda x: x['pubdate'])
+        #-------------------------------
+        #else:
             # Для обычных пользователей извлекаем комментарии из ответа
-            comments_response = ApplicationCommentsAPIView().get(request=request, application_id=application_id).data
+        #    comments_response = ApplicationCommentsAPIView().get(request=request, application_id=application_id).data
             # Инициализируем history пустым списком по умолчанию
-            history = []
-            if 'comments' in comments_response:
-                history = list(comments_response['comments'])  # Преобразуем QuerySet в список
+        #    history = []
+        #    if 'comments' in comments_response:
+        #        history = list(comments_response['comments'])  # Преобразуем QuerySet в список
 
-            def parse_date(date_str):
-                return datetime.strptime(date_str, '%d.%m.%Y %H:%M')
+        #    def parse_date(date_str):
+        #        return datetime.strptime(date_str, '%d.%m.%Y %H:%M')
 
-            history_sorted = {}
-            history_sorted['comments'] = sorted(history, key=lambda x: parse_date(x['formatted_date']))
-            print("Sample content:", history_sorted)
+        #    history_sorted = {}
+        #    history_sorted['comments'] = sorted(history, key=lambda x: parse_date(x['formatted_date']))
+            #print("Sample content:", history_sorted)
+            #-----------------------------
         #if permissions['is_staff']:
 
         #else:
@@ -1702,10 +1704,30 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
         responses = {(200, 'application/json'): OpenApiResponse(response = CommentsListSerializer())}
     )
     def get(self, request, application_id, *args, **kwargs):
-        application = ApplicationModel.objects.annotate(organization_id = F('client__organization_id')).get(id = application_id)
+        # ИСПРАВЛЕНО: Ищем организацию через прямой контракт ИЛИ через конечных пользователей (end_users)
+        try:
+            application = ApplicationModel.objects.filter(id=application_id).annotate(
+                org_from_contract=F('contract__organization_id'),
+                org_from_end_users=F('contract__end_users__organization__id'),
+                org_from_client=F('client__organization_id') # Оставляем как запасной вариант
+            ).first()
 
-        if not is_admin_or_engineer(request.user) and not application.organization_id == request.user.organization_id:
-            return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
+            if not application:
+                return Response({'message': 'Заявка не найдена'}, status=status.HTTP_404_NOT_FOUND)
+        except ApplicationModel.DoesNotExist:
+            return Response({'message': 'Заявка не найдена'}, status=status.HTTP_404_NOT_FOUND)
+
+        # ПРОВЕРКА ПРАВ
+        if not is_admin_or_engineer(request.user):
+            user_org = request.user.organization_id
+            # Проверяем, совпадает ли организация юзера хотя бы с одним из трех источников в заявке
+            has_access = (
+                (application.org_from_contract == user_org) or
+                (application.org_from_end_users == user_org) or
+                (application.org_from_client == user_org)
+            )
+            if not has_access:
+                return Response({'message': 'Недостаточно прав'}, status=status.HTTP_403_FORBIDDEN)
 
         params = {'application_id': application_id}
         if not is_admin_or_engineer(request.user):
@@ -1740,10 +1762,29 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
         responses = {(200, 'application/json'): OpenApiResponse(response = AppCommentSerializer())}
     )
     def post(self, request, application_id, *args, **kwargs):
-        application = ApplicationModel.objects.annotate(organization_id = F('client__organization_id')).get(id = application_id)
+        # ИСПРАВЛЕНО: Аналогично подтягиваем все связанные организации для проверки прав перед сохранением поста
+        try:
+            application = ApplicationModel.objects.filter(id=application_id).annotate(
+                org_from_contract=F('contract__organization_id'),
+                org_from_end_users=F('contract__end_users__organization__id'),
+                org_from_client=F('client__organization_id')
+            ).first()
 
-        if not is_admin_or_engineer(request.user) and not application.organization_id == request.user.organization_id:
-            return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
+            if not application:
+                return Response({'message': 'Заявка не найдена'}, status=status.HTTP_404_NOT_FOUND)
+        except ApplicationModel.DoesNotExist:
+            return Response({'message': 'Заявка не найдена'}, status=status.HTTP_404_NOT_FOUND)
+
+        # ПРОВЕРКА ПРАВ
+        if not is_admin_or_engineer(request.user):
+            user_org = request.user.organization_id
+            has_access = (
+                (application.org_from_contract == user_org) or
+                (application.org_from_end_users == user_org) or
+                (application.org_from_client == user_org)
+            )
+            if not has_access:
+                return Response({'message': 'Недостаточно прав'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = AppCommentSerializer(data = request.data)
         if serializer.is_valid():
@@ -1815,8 +1856,8 @@ class ApplicationHistoryAPIView(APIView):
         responses = {(200, 'application/json'): OpenApiResponse(response = HistorySerializer())}
     )
     def get(self, request, application_id, *args, **kwargs):
-        if not is_admin_or_engineer(request.user):
-            return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
+        #if not is_admin_or_engineer(request.user):
+        #    return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
 
         statuses = AppHistoryModel.objects.filter(Q(application_id = application_id) & Q(Q(type = 1) | Q(type = 2) | Q(type = 5) | Q(type = 6)))\
             .annotate(
