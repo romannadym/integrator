@@ -43,20 +43,25 @@
                   {% endfor %}
                 {% else %}
                   {% for record in data.history %}
-                    <div class="d-flex mb-4 comment">
-                        <div class="flex-shrink-0">
-                            <img src="/static/assets/images/users/user-dummy-img.jpg" alt="" class="avatar-xs rounded-circle" />
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h5 class="fs-13">
-                              <b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small>
-                              {% if record.author_id and record.author_id == user.id %}
-                                <a class="" href="#showModalEditComment" data-comment-id="{{ record.id|safe }}"  data-text-edit='{{ record.text|safe }}' data-bs-toggle="modal"><i class="ri-pencil-fill align-bottom me-2 text-muted"></i></a>
-                              {% endif %}
-                            </h5>
-                            <div class="ckeditor-output" >{{ record.text|safe }}</div>
-                        </div>
-                    </div>
+                    {% if record.hide == 1 %}
+                      
+                    {% else %}
+                      <div class="d-flex mb-4 comment">
+                          <div class="flex-shrink-0">
+                              <img src="/static/assets/images/users/user-dummy-img.jpg" alt="" class="avatar-xs rounded-circle" />
+                          </div>
+                          <div class="flex-grow-1 ms-3">
+                              <h5 class="fs-13">
+                                <b>{{ record.author_name }} </b><small class="text-muted">{{ record.formatted_date }}</small>
+                                {% if record.author_id and record.author_id == user.id %}
+                                  <a class="" href="#showModalEditComment" data-comment-id="{{ record.id|safe }}"  data-text-edit='{{ record.text|safe }}' data-bs-toggle="modal"><i class="ri-pencil-fill align-bottom me-2 text-muted"></i></a>
+                                {% endif %}
+                              </h5>
+
+                              <div class="ckeditor-output" >{{ record.text|safe }}</div>
+                          </div>
+                      </div>
+                    {% endif %}
                 {% endfor %}
               {% endif %}
             </div>
