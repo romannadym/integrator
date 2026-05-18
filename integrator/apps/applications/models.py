@@ -210,10 +210,11 @@ class AppCommentModel(models.Model):
         ordering = ['-pubdate']
 
 def comments_send_messages(comment, method_type):
-    # Аннотируем заявку инженерами
     User = get_user_model()
+
+    # ИСПРАВЛЕНО: Вместо Subquery берем email напрямую через связь contact_user
     application = ApplicationModel.objects.annotate(
-        email=Subquery(OrganizationContactModel.objects.filter(id=OuterRef('contact_id')).values('email')[:1])
+        email=F('contact_user__email')
     ).get(id=comment.application_id)
 
     # Преобразуем emails инженеров в список
