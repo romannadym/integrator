@@ -94,7 +94,7 @@ class ApplicationDetailsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'formatted_date', 'status_id', 'status_name', 'priority_id', 'priority_name',
             'engineers', 'engineer_names', 'client_id', 'contact_user_id', 'contact_name', 'contact_email', 'contact_phone',
-            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'documents',
+            'support_level', 'vendor_name', 'equipment_id', 'equipment_name', 'changed', 'problem', 'end_user_organization_id', 'end_user_organization_name', 'contract_number', 'contract_id', 'documents',
             'asset_brand_name', 'asset_model_name', 'asset_type_name', 'asset_serial_name'
         ]
     def get_engineers(self, obj):

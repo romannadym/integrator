@@ -95,13 +95,13 @@ $(document).ready(function () {
        const itemPriorityId = button.data('editPriorityId');      // Получаем data-edit-row
        const itemEquipmentName = button.data('editEquipmentName')
        const itemProblem = button.data('editProblem')
-       const itemOrganizationUserId = button.data('editOrganizationUserId')
+       const itemContractId = button.data('editContractId')
        const modal = $(this);
           // Если хочешь вставить ID в заголовок или текст:
           modal.find('h5').text(`Редактирование заявки #${itemId}`);
           modal.find('#problem_field_edit').val(itemProblem);
           $('#id_priority_edit').val(itemPriorityId).trigger('change');
-          EquipmentListEdit(itemOrganizationUserId, itemEquipmentName)
+          EquipmentListEdit(itemContractId, itemEquipmentName)
 
         $('#updateTicket').off('click').on('click', (evn) => {
           evn.preventDefault();
@@ -147,13 +147,14 @@ $(document).ready(function () {
         $('#problem_field_edit').val(null).trigger('change');
     });
 
-    function EquipmentListEdit(client_id, equipment_name) {
-        if ( !client_id) return;
+    function EquipmentListEdit(contract_id, equipment_name) {
+        console.log(contract_id)
+        if ( !contract_id) return;
 
         $.ajax({
             url: '/applications/add/',
             method: 'POST',
-            data: { client: client_id, sn: '' },
+            data: { contract_id: contract_id, sn: '' },
             headers: { 'X-CSRFToken': getCookie('csrftoken') },
             dataType: 'json',
             success: function(result) {

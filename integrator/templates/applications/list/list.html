@@ -352,6 +352,7 @@
                   data: 'id',
                   render: function(data, type, row) {
                       // Создание ссылки на страницу деталей заявки с использованием id
+                      console.log(row)
                       let btnActions = ``;
                       {% if permissions.is_staff %}
                       const escapedTitle = row.problem
@@ -367,7 +368,8 @@
                                data-edit-priority-id="${row.priority_id}"
                                data-edit-equipment-name="${row.equipment_name}"
                                data-edit-problem="${escapedTitle}"
-                               data-edit-organization-user-id="${row.organization_user_id}"
+                               data-edit-organization-id="${row.organization_id}"
+                               data-edit-contract-id="${row.contract_id}"
                                data-edit-status-id="${row.status_id}"
                                data-edit-engineer-id="${row.engineer_id}"
                                ><i class="ri-pencil-fill align-bottom me-2 text-muted"></i> Редактировать</a></li>

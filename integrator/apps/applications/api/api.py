@@ -701,7 +701,7 @@ class ApplicationsListAPIViewNew(APIView):
 
         paginator = Paginator(tickets, length)
         page_obj = paginator.get_page(page_number)
-        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'problem', 'description', 'organization_user_id', 'last_change_date',]
+        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'contract_id', 'problem', 'description', 'organization_user_id', 'last_change_date',]
 
         if is_staff:
             fields.extend([

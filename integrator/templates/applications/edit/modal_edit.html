@@ -88,7 +88,7 @@
     $.ajax({
         url: '/applications/add/',
         method: 'POST',
-        data: { client: {{ data.application.client_id }}, sn: '' },
+        data: { contract_id: {{ data.application.contract_id }}, sn: '' },
         headers: { 'X-CSRFToken': getCookie('csrftoken') },
         dataType: 'json',
         success: function(result) {

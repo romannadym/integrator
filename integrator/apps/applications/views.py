@@ -47,26 +47,37 @@ def AddApplicationView(request): #Создание заявки
         # === 1. БЛОК АЯКС-ПОДГРУЗКИ ОБОРУДОВАНИЯ ===
         if 'problem' not in request.POST:
             org_id = request.POST.get('client')
+            contract_id = request.POST.get('contract_id')
 
             # Если это обычный заказчик, принудительно берем только его организацию
             if not request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists():
                 org_id = request.user.organization.id if request.user.organization else None
 
-            if not org_id:
-                return JsonResponse([], safe=False)
-
             search_sn = request.POST.get('sn', '')
             if search_sn is None:
                 search_sn = ''
 
-            # Формируем базовый запрос по организации и активному контракту
-            equipments_qs = ContractEquipmentModel.objects.filter(
-                Q(
-                    Q(contract__organization_id=org_id) |
-                    Q(contract__end_users__organization_id=org_id)
-                ) &
-                Q(contract__enddate__gt=datetime.now().date())
-            )
+            # --- ПРАВИЛЬНАЯ ПРОВЕРКА С ПРИОРИТЕТОМ CONTRACT_ID ---
+            # Вариант 1: Запрос из редактирования (передан контракт)
+            if contract_id and str(contract_id).isdigit():
+                equipments_qs = ContractEquipmentModel.objects.filter(
+                    contract_id=int(contract_id),
+                    contract__enddate__gt=datetime.now().date()
+                )
+
+            # Вариант 2: Запрос из создания (передана организация)
+            elif org_id and str(org_id).isdigit():
+                equipments_qs = ContractEquipmentModel.objects.filter(
+                    Q(
+                        Q(contract__organization_id=int(org_id)) |
+                        Q(contract__end_users__organization_id=int(org_id))
+                    ) &
+                    Q(contract__enddate__gt=datetime.now().date())
+                )
+
+            # Вариант 3: Защита, если не прилетело ни то, ни другое
+            else:
+                return JsonResponse([], safe=False)
 
             # Если передан поисковый запрос по серийнику/модели, фильтруем по нему
             if search_sn:
