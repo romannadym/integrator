@@ -396,16 +396,16 @@ def CommentsFromEmails():
             messages_uids.append({"message_uid": uid_int})
 
     if messages:
-        #User = get_user_model()
-        #users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
+        User = get_user_model()
+        users = {user["email"]: user["id"] for user in User.objects.values("id", "email")}
 
         for index, message in enumerate(messages):
-            #message["author_id"] = users.get(message["author_id"])
-            message["author_id"] = 119
+            message["author_id"] = users.get(message["author_id"])
+            #message["author_id"] = 119
             #logger.error(f"failed2222: {message['author_id']}")
             if message["author_id"]:
                 last_uid_new = int(messages_uids[index]["message_uid"])
-                logger.error(f"failed2222: {last_uid_new}")
+                logger.info(f"failed2222: {last_uid_new}")
                 try:
                     AppCommentModel.objects.create(**message)
 

@@ -15,9 +15,6 @@
                         <input type="text" name="name" class="form-control" maxlength="250" required="" id="id_edit_name">
                       </div>
                   </div>
-                  <div id="contacts-edit-container">
-
-                  </div>
                 </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">
@@ -53,31 +50,7 @@
        const modal = $(this);
           // Если хочешь вставить ID в заголовок или текст:
           modal.find('#id_edit_name').val(itemName);
-       $('#contacts-edit-container').html('');
-        $.get("/accounts/api/organizations/"+itemId+"/contacts/", function(response, status) {
-            //console.log(response);
-            if(status == 'success'){
 
-              response.data.forEach(function(item, index) {
-                  let html = `<div class="row mt-3 contact-row align-items-end">
-                    <div class="col-lg-4">
-                      <h6 class="fw-semibold">ФИО:</h6>
-                      <input type="text" name="fio[]" value="${item.fio}" class="form-control" maxlength="250" required>
-                    </div>
-                    <div class="col-lg-3">
-                      <h6 class="fw-semibold">Email:</h6>
-                      <input type="text" name="email[]" value="${item.email}" class="form-control" maxlength="250" required>
-                    </div>
-                    <div class="col-lg-3">
-                      <h6 class="fw-semibold">Телефон:</h6>
-                      <input type="text" name="phone[]" value="${item.phone}" class="form-control" maxlength="250" required>
-                      <input type="hidden" name="id[]" value="${item.id}" class="form-control" maxlength="250" required>
-                    </div>
-                  </div>`;
-                  $('#contacts-edit-container').append(html);
-              });
-            }
-        });
         $('#save-org-btn').off('click').on('click', (evn) => {
           evn.preventDefault();
           // Блокируем кнопку отправки
@@ -99,25 +72,9 @@
             </span>
           `);
 
-          $('.row.mt-3.contact-row').each(function() {
-              const id = $(this).find('input[name="id[]"]').val();
-              const fio = $(this).find('input[name="fio[]"]').val().trim();
-              const email = $(this).find('input[name="email[]"]').val().trim();
-              const phone = $(this).find('input[name="phone[]"]').val().trim();
-              console.log(id)
-              if (fio || email || phone) {
-                  contacts.push({
-                      id: id,
-                      fio: fio,
-                      email: email,
-                      phone: phone,
-                      DELETE: false
-                  });
-              }
-          });
           var data = {
                         id: itemId,
-                        contacts: contacts,
+                        contacts: [],
                         name: $('#id_edit_name').val().trim()
                       }
 

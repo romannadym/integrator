@@ -264,7 +264,7 @@
 
       function EquipmentList(client_id) {
           if ( !client_id) return;
-
+          console.log(client_id)
           $.ajax({
               url: '/applications/add/',
               method: 'POST',
@@ -272,6 +272,7 @@
               headers: { 'X-CSRFToken': getCookie('csrftoken') },
               dataType: 'json',
               success: function(result) {
+                  console.log(result)
                   $('#id_equipment').empty()
                   result.forEach(function (item){
                     let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`

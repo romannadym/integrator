@@ -15,25 +15,6 @@
                         <input type="text" name="name" class="form-control" maxlength="250" required="" id="id_name">
                       </div>
                   </div>
-                  <div id="contacts-container">
-                    <div class="row mt-3 contact-row align-items-end">
-                      <div class="col-lg-4">
-                        <h6 class="fw-semibold">ФИО:</h6>
-                        <input type="text" name="fio[]" class="form-control" maxlength="250" required>
-                      </div>
-                      <div class="col-lg-3">
-                        <h6 class="fw-semibold">Email:</h6>
-                        <input type="text" name="email[]" class="form-control" maxlength="250" required>
-                      </div>
-                      <div class="col-lg-3">
-                        <h6 class="fw-semibold">Телефон:</h6>
-                        <input type="text" name="phone[]" class="form-control" maxlength="250" required>
-                      </div>
-                      <div class="col-lg-1">
-                        <button type="button" class="btn btn-primary add-contact-btn">+</button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">
@@ -83,29 +64,15 @@
           <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
         </span>
       `);
-      const contacts = [];
 
-      $('.row.mt-3').each(function() {
-          const fio = $(this).find('input[name="fio[]"]').val().trim();
-          const email = $(this).find('input[name="email[]"]').val().trim();
-          const phone = $(this).find('input[name="phone[]"]').val().trim();
-
-          if (fio || email || phone) {
-              contacts.push({
-                  fio: fio,
-                  email: email,
-                  phone: phone
-              });
-          }
-      });
       const name = $('#id_name').val();
-      if(!name || contacts.length == 0){
+      if(!name){
           alertError('Все поля должны быть заполнены');
         return;
       }
 
       const dataToSend = {
-          contacts: contacts,
+          contacts: [],
           name: name
       };
       $.ajax({
@@ -209,40 +176,5 @@
       })
     }
 
-        // Обработчик для добавления новой строки
-     $(document).on('click', '.add-contact-btn', function() {
-       addContactRow();
-       // Меняем текущую кнопку на "-"
-       $(this).text('-').removeClass('add-contact-btn').addClass('remove-contact-btn btn-danger');
-     });
-
-     // Обработчик для удаления строки
-     $(document).on('click', '.remove-contact-btn', function() {
-       $(this).closest('.contact-row').remove();
-     });
-
-     // Функция добавления новой строки
-     function addContactRow() {
-       const newRow = `
-       <div class="row mt-3 contact-row align-items-end">
-         <div class="col-lg-4">
-           <h6 class="fw-semibold">ФИО:</h6>
-           <input type="text" name="fio[]" class="form-control" maxlength="250" required>
-         </div>
-         <div class="col-lg-3">
-           <h6 class="fw-semibold">Email:</h6>
-           <input type="text" name="email[]" class="form-control" maxlength="250" required>
-         </div>
-         <div class="col-lg-3">
-           <h6 class="fw-semibold">Телефон:</h6>
-           <input type="text" name="phone[]" class="form-control" maxlength="250" required>
-         </div>
-         <div class="col-lg-1">
-           <button type="button" class="btn btn-primary add-contact-btn">+</button>
-         </div>
-       </div>`;
-
-       $('#contacts-container').append(newRow);
-     }
   })
 </script>
