@@ -3,10 +3,11 @@ import email
 import datetime
 from email.header import decode_header
 import re
+import os
 from django.template.loader import render_to_string
 from django.core.mail import EmailMessage
 from django.conf import settings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from django.db.models import Prefetch, Max
 import django
@@ -18,8 +19,306 @@ from django.http import HttpResponse
 from django.db.models import Subquery, OuterRef
 from email_reply_parser import EmailReplyParser
 User = get_user_model()
+from contracts.models import ContractEquipmentModel
+from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel, AppDocumentsModel
+import logging
+from django.utils import timezone
 
-from applications.models import ApplicationModel, AppStatusModel, StatusModel, AppHistoryModel, ApplicationArchiveModel, EmailLastUID, AppCommentModel
+# Инициализируем логгер для этого файла
+logger = logging.getLogger(__name__)
+
+@app.task
+def CreateApplicationsFromEmails():
+    User = get_user_model()
+    try:
+        # Используем отдельную запись UID для создания заявок (id=2)
+        last_uid, created = EmailLastUID.objects.get_or_create(
+            id=2,
+            defaults={'uid': 0, 'success': True, 'pubdate': timezone.now()}
+        )
+    except Exception as e:
+        logger.error(f"Ошибка получения EmailLastUID для заявок: {e}")
+        return
+
+    since_date_str = (date.today() - timedelta(days=1)).strftime("%d-%b-%Y")
+
+    imap = imaplib.IMAP4_SSL(settings.EMAIL_HOST_IMAP)
+    imap.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+    imap.select("INBOX", readonly=True)
+
+    # Ищем новые письма
+    if last_uid and last_uid.uid > 0:
+        result, data = imap.uid('search', None, f'UID {last_uid.uid + 1}:*')
+    else:
+        result, data = imap.search(None, 'SINCE', since_date_str)
+
+    if result != 'OK' or not data[0]:
+        return {'status': 'info', 'message': 'Нет новых писем для создания заявок'}
+
+    email_uids = data[0].split()
+    latest_email_uid = int(email_uids[-1])
+
+    if last_uid and latest_email_uid <= last_uid.uid:
+        return {'status': 'info', 'message': 'Все письма уже обработаны'}
+
+    last_uid_new = last_uid.uid
+    system_user = User.objects.get(id=1)
+    domain = settings.ALLOWED_HOSTS[1]
+
+    for message_uid_bytes in email_uids:
+        uid_int = int(message_uid_bytes.decode("utf-8"))
+
+        if uid_int > last_uid_new:
+            last_uid_new = uid_int
+
+        result, data = imap.uid("fetch", message_uid_bytes, "(RFC822)")
+
+        if result != 'OK' or not data or data[0] is None:
+            logger.warning(f"Не удалось получить письмо с UID {uid_int} (возможно, оно удалено или перемещено)")
+            continue
+
+        raw_email = data[0][1]
+        if not raw_email:
+            continue
+
+        email_message = email.message_from_bytes(raw_email)
+        subject_raw = email_message.get("Subject") or ""
+        subject = decode_subject(subject_raw).strip()
+        from_email = email.utils.parseaddr(email_message["From"])[1].lower().strip()
+
+        # --- ФИЛЬТРЫ ---
+        if from_email == "mailer-daemon@yandex.ru":
+            continue
+
+        if re.search(r"заявк. № (\d+)", subject, re.IGNORECASE):
+            continue
+
+        # === ОБНОВЛЕННЫЙ ФИЛЬТР ТЕМЫ: Ищем SN: или S/N: в самом начале темы ===
+        # Паттерн ^S/N\s*:\s*([^\s]+) заберет первый сплошной текст (серийник) после двоеточия
+        subject_match = re.search(r"^S/N\s*:\s*([^\s]+)", subject, re.IGNORECASE)
+        if not subject_match:
+            # Пробуем вариант без слэша, просто SN
+            subject_match = re.search(r"^SN\s*:\s*([^\s]+)", subject, re.IGNORECASE)
+
+        if not subject_match:
+            # Если тема не начинается с SN: или S/N: — игнорируем письмо
+            continue
+
+        # Вытаскиваем серийный номер
+        raw_sn = subject_match.group(1).strip()
+        if not raw_sn:
+            continue
+
+        # --- СБОР И ОЧИСТКА ТЕКСТА ОТ HTML (Тело письма = Описание проблемы) ---
+        body_text = ""
+        attachments = []
+
+        if email_message.is_multipart():
+            for part in email_message.walk():
+                content_type = part.get_content_type()
+                filename = part.get_filename()
+
+                if content_type in ["text/plain", "text/html"] and not filename:
+                    payload = part.get_payload(decode=True)
+                    charset = part.get_content_charset() or "utf-8"
+                    chunk = payload.decode(charset, errors="ignore")
+
+                    if content_type == "text/html":
+                        soup = BeautifulSoup(chunk, "html.parser")
+                        chunk = soup.get_text(separator="\n")
+
+                    body_text += chunk + "\n"
+
+                elif filename:
+                    filename_decoded = decode_subject(filename)
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        unique_prefix = f"mail_att_{uid_int}_"
+                        temp_filename = unique_prefix + filename_decoded
+                        temp_file_path = os.path.join(settings.MEDIA_ROOT, temp_filename)
+
+                        with open(temp_file_path, 'wb') as f:
+                            f.write(payload)
+
+                        attachments.append({
+                            'temp_path': temp_file_path,
+                            'original_name': filename_decoded
+                        })
+        else:
+            payload = email_message.get_payload(decode=True)
+            charset = email_message.get_content_charset() or "utf-8"
+            raw_body = payload.decode(charset, errors="ignore")
+
+            if email_message.get_content_type() == "text/html":
+                body_text = BeautifulSoup(raw_body, "html.parser").get_text(separator="\n")
+            else:
+                body_text = raw_body
+
+        body_text = body_text.strip()
+
+        # --- ВАЛИДАЦИЯ 1: ПРОВЕРКА НА ПУСТОЕ ТЕЛО ПИСЬМА ---
+        if not body_text:
+            logger.warning(f"Письмо UID {uid_int} отклонено: пустое тело письма (нет описания).")
+            error_mail = EmailMessage(
+                'Ошибка создания заявки: пустое описание проблемы',
+                '<h3>Уважаемый пользователь!</h3><p>Заявка не может быть создана, так как тело вашего письма оказалось пустым.</p><p>Пожалуйста, напишите описание проблемы в самом письме и отправьте его еще раз.</p>',
+                settings.EMAIL_HOST_USER,
+                [from_email]
+            )
+            error_mail.content_subtype = "html"
+            try:
+                error_mail.send()
+            except Exception as mail_err:
+                logger.error(f"Не удалось отправить уведомление о пустом описании на {from_email}: {mail_err}")
+
+            for att in attachments:
+                if os.path.exists(att['temp_path']): os.remove(att['temp_path'])
+            continue
+
+        # --- ВАЛИДАЦИЯ 2: ПОИСК ОБОРУДОВАНИЯ ПО S/N ИЗ ТЕМЫ ---
+        clean_sn = re.sub(r'[^\w\-]', '', raw_sn)  # Очищаем серийник от лишних знаков препинания
+        equipment_obj = ContractEquipmentModel.objects.filter(
+            sn__icontains=clean_sn,
+            contract__enddate__gte=timezone.now().date()
+        ).order_by('-id').first()
+
+        # Если оборудование по серийнику из темы не найдено или контракт истек
+        if not equipment_obj:
+            logger.warning(f"Письмо UID {uid_int} отклонено: оборудование с S/N '{raw_sn}' не найдено.")
+            error_mail = EmailMessage(
+                'Ошибка создания заявки: оборудование не найдено',
+                f'<h3>Уважаемый пользователь!</h3><p>Мы не смогли найти активный контракт или оборудование по указанному в теме серийному номеру: <b>{raw_sn}</b>.</p><p>Автоматическое создание заявки отклонено. Проверьте правильность S/N.</p>',
+                settings.EMAIL_HOST_USER,
+                [from_email]
+            )
+            error_mail.content_subtype = "html"
+            try:
+                error_mail.send()
+            except Exception as mail_err:
+                logger.error(f"Не удалось отправить уведомление об ошибке S/N на {from_email}: {mail_err}")
+
+            for att in attachments:
+                if os.path.exists(att['temp_path']): os.remove(att['temp_path'])
+            continue
+
+        # Определение пользователя-отправителя
+        sender_user = User.objects.filter(email=from_email, is_active=True).first()
+        if not sender_user:
+            sender_user = User.objects.filter(is_superuser=True).first()
+
+        # --- СОЗДАНИЕ ЗАЯВКИ ---
+        try:
+            app = ApplicationModel(
+                problem=body_text,  # Тело письма — описание проблемы
+                client=sender_user,
+                contact_user=sender_user,
+                creator=sender_user,
+                equipment=equipment_obj,
+                contract=equipment_obj.contract,
+                priority_id=3,
+                status=StatusModel.objects.get(id=1)
+            )
+            app.save()
+
+            # Создаем статусной трек и запись в историю
+            AppStatusModel.objects.create(status=app.status, application=app)
+            AppHistoryModel.objects.create(
+                type=1,
+                text=f'Заявка успешно создана автоматически из входящего письма от {from_email}. Тема: "{subject}"',
+                application=app,
+                author=system_user
+            )
+
+            # === 1. ОТПРАВКА УВЕДОМЛЕНИЯ В ТЕЛЕГРАМ ===
+            try:
+                absolute_url = f"https://{domain}{app.get_absolute_url()}"
+                telegram_text = render_to_string('applications/telegram.html', {
+                    'id': app.id,
+                    'url': absolute_url,
+                    'type': 'add'
+                })
+
+                telegram_settings = settings.TELEGRAM
+                bot = telegram.Bot(token=telegram_settings['bot_token'])
+                bot.send_message(
+                    chat_id=telegram_settings['channel_id'],
+                    text=telegram_text,
+                    parse_mode=telegram.ParseMode.HTML
+                )
+            except Exception as tg_err:
+                logger.error(f"Не удалось отправить TG уведомление для заявки №{app.id}: {tg_err}")
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text='Не удалось отправить сообщение о создании заявки в телеграм-канал (из почты)',
+                    application=app,
+                    author=system_user
+                )
+            else:
+                AppHistoryModel.objects.create(
+                    type=4,
+                    text='Отправлено сообщение о создании заявки в телеграм-канал (из почты)',
+                    application=app,
+                    author=system_user
+                )
+
+            # === 2. ОТПРАВКА УВЕДОМЛЕНИЯ КЛИЕНТУ ПО ПОЧТЕ ===
+            try:
+                mail_text = render_to_string('applications/mail.html', {
+                    'id': app.id,
+                    'url': absolute_url,
+                    'type': 'add'
+                })
+
+                mail = EmailMessage(
+                    'Создание заявки № ' + str(app.id),
+                    mail_text,
+                    settings.EMAIL_HOST_USER,
+                    [app.contact_user.email]
+                )
+                mail.content_subtype = "html"
+                mail.send()
+
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Отправлено сообщение о создании заявки на адрес {app.contact_user.email}',
+                    application=app,
+                    author=system_user
+                )
+            except Exception as mail_send_err:
+                logger.error(f"Не удалось отправить почтовое уведомление для заявки №{app.id}: {mail_send_err}")
+                AppHistoryModel.objects.create(
+                    type=3,
+                    text=f'Не удалось отправить сообщение о создании заявки на адрес {app.contact_user.email}',
+                    application=app,
+                    author=system_user
+                )
+
+            # --- ПРИКРЕПЛЕНИЕ ВЛОЖЕНИЙ К ЗАЯВКЕ ---
+            if attachments:
+                from django.core.files.base import File
+                for att in attachments:
+                    if os.path.exists(att['temp_path']):
+                        doc = AppDocumentsModel(application=app, name=att['original_name'])
+                        with open(att['temp_path'], 'rb') as f:
+                            doc.document.save(att['original_name'], File(f), save=True)
+                        os.remove(att['temp_path'])
+
+            logger.info(f"Успешно создана заявка № {app.id} из письма UID {uid_int}")
+
+        except Exception as e:
+            logger.error(f"Не удалось создать заявку из письма UID {uid_int}. Ошибка: {e}")
+            for att in attachments:
+                if os.path.exists(att['temp_path']): os.remove(att['temp_path'])
+            continue
+
+    # Обновляем UID обработанных писем для заявок
+    if last_uid_new > last_uid.uid:
+        last_uid.uid = last_uid_new
+        last_uid.pubdate = timezone.now()
+        last_uid.save()
+        logger.info(f"EmailLastUID (id=2) успешно обновлен в базе до значения {last_uid_new}")
+
+    return {'status': 'success', 'processed_up_to_uid': last_uid_new}
 
 @app.task
 def CloseApplication():

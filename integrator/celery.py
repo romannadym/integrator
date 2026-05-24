@@ -27,5 +27,9 @@ app.conf.beat_schedule = {
     'comments-from-emails': {
         'task': 'applications.tasks.CommentsFromEmails',
         'schedule': crontab(minute='*/1'), #Каждые 5 минут
-    }
+    },
+    'create-applications-from-emails': {
+        'task': 'applications.tasks.CreateApplicationsFromEmails',
+        'schedule': crontab(minute='*/1'), # Каждую минуту
+    },
 }
