@@ -92,6 +92,7 @@ def AddApplicationView(request): #Создание заявки
                     sn=eq_list[1],
                     contract__enddate__gte=timezone.now().date()  # Только с действующим контрактом
                 ).order_by('-id').first()
+            app.contract = app.equipment.contract
             print("КРЮК:", app.equipment)
             app.save()  # Сохраняем заявку перед связью с файлами
 
@@ -138,7 +139,7 @@ def AddApplicationView(request): #Создание заявки
                 'Создание заявки № ' + str(app.id),
                 text,
                 settings.EMAIL_HOST_USER,
-                [app.contact.email]
+                [app.contact_user.email]
             )
             mail.content_subtype = "html"
             try:
@@ -146,14 +147,14 @@ def AddApplicationView(request): #Создание заявки
             except Exception:
                 AppHistoryModel.objects.create(
                     type=3,
-                    text=f'Не удалось отправить сообщение о создании заявки на адрес {app.contact.email}',
+                    text=f'Не удалось отправить сообщение о создании заявки на адрес {app.contact_user.email}',
                     application=app,
                     author=request.user
                 )
             else:
                 AppHistoryModel.objects.create(
                     type=3,
-                    text=f'Отправлено сообщение о создании заявки на адрес {app.contact.email}',
+                    text=f'Отправлено сообщение о создании заявки на адрес {app.contact_user.email}',
                     application=app,
                     author=request.user
                 )
@@ -371,36 +372,41 @@ def SnEqView(request, sn): #Выбрать оборудование по сер�
 
 @login_required
 @require_POST
-def GetContactsView(request): #Выбрать контакты для заявки
+def GetContactsView(request):  # Выбрать контакты для заявки
     if request.method == 'POST':
-        from django.http import JsonResponse, HttpResponse
+        from django.http import JsonResponse
+        from django.contrib.auth import get_user_model
         User = get_user_model()
 
-        client = request.POST.get('client')
-        if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
-            client = request.user.id
+        # Теперь 'client' — это ID организации, пришедший с фронта
+        org_id = request.POST.get('client')
 
-        organization = User.objects.get(id=client)
+        # Проверка прав: если не админ и не инженер,
+        # то он может видеть только сотрудников СВОЕЙ организации
+        if not request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists():
+            if hasattr(request.user, 'organization'):
+                org_id = request.user.organization_id
+            else:
+                return JsonResponse({"data": [], "error": "Организация не определена"}, status=403)
 
-        # Создаем копию GET параметров для APIView
-        get_params = request.GET.copy()
+        if not org_id:
+            return JsonResponse({"data": []})
 
-        # Имитируем GET запрос для APIView
-        from rest_framework.request import Request
-        from rest_framework.test import APIRequestFactory
-        factory = APIRequestFactory()
-        drf_request = factory.get('/fake-path/', get_params)
-        drf_request.user = request.user
+        # Получаем всех активных пользователей данной организации
+        # Выбираем только нужные поля: id, first_name, last_name, email
+        contacts = User.objects.filter(
+            organization_id=org_id,
+            is_active=True
+        ).values('id', 'first_name', 'last_name', 'email')
 
-        # Получаем ответ от APIView
-        api_response = ContactsListAPIView().get(drf_request, organization.organization_id)
+        # Формируем данные для ответа (DataTables формат)
+        data_list = list(contacts)
 
-        # Преобразуем Response в словарь
         response_data = {
-            "draw": api_response.data.get("draw"),
-            "recordsTotal": api_response.data.get("recordsTotal"),
-            "recordsFiltered": api_response.data.get("recordsFiltered"),
-            "data": api_response.data.get("data")
+            "draw": int(request.POST.get('draw', 1)),
+            "recordsTotal": len(data_list),
+            "recordsFiltered": len(data_list),
+            "data": data_list
         }
 
         return JsonResponse(response_data, safe=False)

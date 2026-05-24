@@ -47,7 +47,7 @@ class ApplicationForm(forms.ModelForm):
 
     class Meta:
         model = ApplicationModel
-        fields = ('priority', 'problem', 'contact', 'client')
+        fields = ('priority', 'problem', 'contact_user', 'client')
         widgets = {
             'problem': forms.Textarea(attrs={'rows': '4'}),
         }
@@ -87,12 +87,6 @@ class ApplicationForm(forms.ModelForm):
                 ).annotate(
                     organization_name=F('organization__name')
                 )
-
-        # Настройка поля contact
-        if user and hasattr(user, 'organization'):
-            self.fields['contact'].queryset = OrganizationContactModel.objects.filter(
-                organization=user.organization
-            ).exclude(email='serindework@mail.ru')
 
 AppDocumentsFormset = inlineformset_factory(
     ApplicationModel, AppDocumentsModel,

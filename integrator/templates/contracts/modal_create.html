@@ -26,7 +26,7 @@
                                 name="{{ field.name }}"
                                 value="{{ field.value|date:'d.m.Y'|default_if_none:'' }}"
                             >
-                        {% elif field.name != 'client' and field.name != 'end_users' %}
+                        {% elif field.name != 'organization' and field.name != 'end_user_organization' %}
                             <input
                                 type="text"
                                 class="form-control"
@@ -68,7 +68,7 @@
           }
           return cookieValue;
       }
-
+      $('#showModalAddContract').on('shown.bs.modal', function () {
       $('#add-contract-form').on('submit', function(evn) {
           evn.preventDefault();
         let submitButton = $('#add-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
@@ -88,14 +88,13 @@
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
           </span>
         `);
-        const endUsers = $('#id_end_users').val() || []; // ['62', '63']
+        const endUserOrg = $('#id_end_user_organization').val();
         let formData = new FormData(this);
-        formData.delete('end_users'); // Удаляем одиночное значение
-        console.log(endUsers)
-            formData.append('end_users', JSON.stringify(endUsers));
-        // Для отладки - выводим данные формы в консоль
-        for (var pair of formData.entries()) {
-          //  console.log(pair[0] + ': ' + pair[1]);
+
+        formData.delete('end_user_organization');
+        if (endUserOrg) {
+            // Передаем просто значение, БЕЗ JSON.stringify
+            formData.append('end_user_organization', endUserOrg);
         }
         let eqcontracts = [];
         formData.append('eqcontracts', JSON.stringify(eqcontracts));
@@ -134,23 +133,23 @@
         });
       })
 
-      $('#id_client').select2({
+      $('#id_organization').select2({
           dropdownParent: $('#showModalAddContract'),
           ajax: {
               // Правильное чтение data-ajax--url
-              url: $('#id_client').attr('data-ajax--url'),
+              url: $('#id_organization').attr('data-ajax--url'),
 
               // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
               data: function(params) {
                   return {
                       term: params.term,
                       _type: 'query',
-                      field_id: $('#id_client').attr('data-field_id')  // или .data('field_id')
+                      field_id: $('#id_organization').attr('data-field_id')  // или .data('field_id')
                   };
               },
 
               // Дополнительные параметры из data-атрибутов
-              cache: $('#id_client').attr('data-ajax--cache') === 'true',
+              cache: $('#id_organization').attr('data-ajax--cache') === 'true',
               dataType: 'json',
               delay: 250,
               processResults: function(data) {
@@ -160,9 +159,9 @@
           },
 
           // Другие настройки из data-атрибутов
-          minimumInputLength: parseInt($('#id_client').attr('data-minimum-input-length')),
-          theme: $('#id_client').attr('data-theme'),
-          allowClear: $('#id_client').attr('data-allow-clear') === 'true',
+          minimumInputLength: parseInt($('#id_organization').attr('data-minimum-input-length')),
+          theme: $('#id_organization').attr('data-theme'),
+          allowClear: $('#id_organization').attr('data-allow-clear') === 'true',
           language: {
                noResults: function() {
               return `<button class="btn btn-primary add-u-btn" data-bs-toggle="modal" data-bs-target="#showModalAddUser"><i class="ri-add-line align-bottom me-1" ></i> Создать</button>`;
@@ -174,22 +173,23 @@
           }
     });
 
-    $('#id_end_users').select2({
+    $('#id_end_user_organization').select2({
+        dropdownParent: $('#showModalAddContract'),
         ajax: {
             // Правильное чтение data-ajax--url
-            url: $('#id_end_users').attr('data-ajax--url'),
+            url: $('#id_end_user_organization').attr('data-ajax--url'),
 
             // Чтение field_id (обратите внимание на data-field_id в вашем HTML)
             data: function(params) {
                 return {
                     term: params.term,
                     _type: 'query',
-                    field_id: $('#id_end_users').attr('data-field_id')  // или .data('field_id')
+                    field_id: $('#id_end_user_organization').attr('data-field_id')  // или .data('field_id')
                 };
             },
 
             // Дополнительные параметры из data-атрибутов
-            cache: $('#id_end_users').attr('data-ajax--cache') === 'true',
+            cache: $('#id_end_user_organization').attr('data-ajax--cache') === 'true',
             dataType: 'json',
             delay: 250,
             processResults: function(data) {
@@ -199,9 +199,9 @@
         },
 
         // Другие настройки из data-атрибутов
-        minimumInputLength: parseInt($('#id_end_users').attr('data-minimum-input-length')),
-        theme: $('#id_end_users').attr('data-theme'),
-        allowClear: $('#id_end_users').attr('data-allow-clear') === 'true',
+        minimumInputLength: parseInt($('#id_end_user_organization').attr('data-minimum-input-length')),
+        theme: $('#id_end_user_organization').attr('data-theme'),
+        allowClear: $('#id_end_user_organization').attr('data-allow-clear') === 'true',
         language: {
              noResults: function() {
                return `<button  type="button"
@@ -214,7 +214,7 @@
             return markup;
         }
       });
-
+      })
     })
   function alertSuccess (text)
   {

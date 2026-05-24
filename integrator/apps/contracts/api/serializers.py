@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from contracts.models import SupportLevelModel, ContractModel, ContractEquipmentModel
+from contracts.models import SupportLevelModel, ContractModel, ContractEquipmentModel, ContractEndUser
 from equipments.models import EquipmentModel
 from django.contrib.auth import get_user_model
 User = get_user_model()  # Правильный способ получить модель пользователя
@@ -35,12 +35,7 @@ class ContractDetailsSerializer(serializers.ModelSerializer):
     eqcontracts = EquipmentSerializer(many = True, required = False)
     signed = serializers.DateField(label = 'Начало договора', format = '%d.%m.%Y')
     enddate = serializers.DateField(label = 'Окончание договора', format = '%d.%m.%Y')
-    # Явно объявляем поле для ManyToMany
-    end_users = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=User.objects.all(),
-        required=False
-    )
+    end_user_organization = serializers.IntegerField(write_only=True, required=False)
 
     class Meta:
         model = ContractModel
@@ -50,29 +45,63 @@ class ContractDetailsSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        equipments = validated_data.pop('eqcontracts')
-        end_users_ids = validated_data.pop('end_users', [])
+        print(f"DEBUG VALIDATED DATA: {validated_data}")
+        # Извлекаем данные
+        equipments = validated_data.pop('eqcontracts', [])
+        # end_user_organization теперь содержит ID выбранной организации
+        organization_id = validated_data.pop('end_user_organization', None)
+        print(f"DEBUG ORG_ID: {organization_id}")
+        # Создаем основной контракт
         contract = ContractModel.objects.create(**validated_data)
-        # Добавляем end_users (ManyToMany)
-        contract.end_users.set(end_users_ids)
+
+        # Работаем с Конечным пользователем (промежуточная таблица)
+        if organization_id:
+            # Создаем запись напрямую в ContractEndUser
+            # Используем заглушку user_id=1, как договаривались ранее
+            new_link = ContractEndUser.objects.create(
+                contractmodel=contract,
+                organization_id=organization_id,
+                user_id=1
+            )
+            print(f"DEBUG LINK CREATED: {new_link.id}")
+        else:
+            print("DEBUG: organization_id is MISSING in validated_data")
+
+        # Работаем с оборудованием (bulk_create)
         if equipments:
             equipments_instance = []
             for equipment in equipments:
-                if not equipment['DELETE']:
-                    equipment.pop('DELETE')
+                # Убеждаемся, что DELETE есть в словаре перед тем как делать pop
+                if not equipment.get('DELETE', False):
+                    equipment.pop('DELETE', None)
                     equipments_instance.append(
-                        ContractEquipmentModel(**equipment, contract = contract)
+                        ContractEquipmentModel(**equipment, contract=contract)
                     )
-            ContractEquipmentModel.objects.bulk_create(equipments_instance)
+            if equipments_instance:
+                ContractEquipmentModel.objects.bulk_create(equipments_instance)
 
         return contract
 
     def update(self, instance, validated_data):
-        fields = ['number', 'client', 'end_users', 'dc_addres', 'signed', 'enddate', 'link']
+        # 1. Извлекаем организацию (этого поля нет в модели ContractModel)
+        org_id = validated_data.pop('end_user_organization', None)
+        equipments = validated_data.pop('eqcontracts', [])
 
+        # 2. Обновляем поля самой модели (client теперь ForeignKey на организацию)
+        # Убрал end_user_organization из списка fields для setattr
+        fields = ['number', 'organization', 'dc_addres', 'signed', 'enddate', 'link']
         for field in fields:
-            setattr(instance, field, validated_data.get(field, getattr(instance, field)))
+            if field in validated_data:
+                setattr(instance, field, validated_data.get(field))
         instance.save()
+
+        # 3. Обновляем Конечного пользователя
+        if org_id:
+            # Обновляем или создаем связь
+            ContractEndUser.objects.update_or_create(
+                contractmodel=instance,
+                defaults={'organization_id': org_id, 'user_id': 1}
+            )
 
         equipments = validated_data.pop('eqcontracts')
         if equipments:

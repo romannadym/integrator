@@ -96,7 +96,6 @@ class ApplicationModel(models.Model):
     priority = models.ForeignKey(AppPriorityModel, verbose_name = 'Приоритет заявки', on_delete = models.PROTECT, related_name = "priorities", null = True)
     equipment = models.ForeignKey(ContractEquipmentModel, verbose_name = 'Оборудование', on_delete = models.PROTECT, related_name = "equipments", null = True)
     problem = models.TextField('Описание проблемы')
-    contact = models.ForeignKey(OrganizationContactModel, verbose_name = 'Контактное лицо', on_delete = models.SET_NULL, related_name = "appcontact", null = True)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Заказчик', on_delete = models.PROTECT, related_name = "appclients", null = True)
     engineers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
@@ -108,7 +107,25 @@ class ApplicationModel(models.Model):
     status = models.ForeignKey(StatusModel, verbose_name = 'Статус заявки', on_delete = models.PROTECT, null = True)
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name = 'Создано', on_delete = models.PROTECT, related_name = "creators", null = True)
     changed = models.BooleanField('Оборудование изменено', default = False)
+    # Новое поле для связи с контрактом
+    contract = models.ForeignKey(
+        'contracts.ContractModel', # Ссылка на модель (приложение.Модель)
+        verbose_name='Контракт',
+        on_delete=models.SET_NULL,
+        related_name='applications',
+        null=True,
+        blank=True
+    )
 
+    # Новое поле для связи с пользователем-контактом
+    contact_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, # Ссылка на системную модель пользователя
+        verbose_name='Связанный пользователь',
+        on_delete=models.SET_NULL,
+        related_name='contact_applications',
+        null=True,
+        blank=True
+    )
     def __str__(self):
         return str(self.id)
 

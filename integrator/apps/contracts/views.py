@@ -9,6 +9,10 @@ from contracts.api.api import GetSupportLevel, GetContract
 from contracts.forms import LevelForm, LevelDeleteForm, ContractForm, EquipmentForm, EquipmentFormset, ContractDeleteForm
 from accounts.forms import  ContactForm
 from integrator.apps.functions import is_admin_or_engineer
+from django.contrib.auth import get_user_model
+
+from contracts.models import ContractEndUser
+
 @login_required
 def SupportLevelsListView(request):
     if not request.user.groups.filter(name = 'Администратор').exists():
@@ -116,20 +120,44 @@ def EditContractView(request, contract_id):
     formset = EquipmentFormset(instance = contract)
 
     if request.method == 'POST':
-        print(request.POST.getlist('end_users'))  # Для отладки
-        form = ContractForm(request.POST, instance = contract)
+        form = ContractForm(request.POST, instance=contract)
         if form.is_valid():
-            contract = form.save(commit = False)
-            formset = EquipmentFormset(request.POST, instance = contract)
-            if formset.is_valid():
+            contract = form.save(commit=False)
+            formset = EquipmentFormset(request.POST, instance=contract)
+
+            if form.is_valid():
+                contract = form.save(commit=False)
+                # ... сохранение контракта и формсета ...
+
+                org_obj = form.cleaned_data.get('end_user_organization')
+
+                if org_obj:
+                    # Ищем ЛЮБОГО активного пользователя из этой организации
+                    # Теперь 'User' будет определен благодаря импорту выше
+                    User = get_user_model()
+                    user_obj = User.objects.filter(organization=org_obj, is_active=True).first()
+
+                    # Если пользователя в организации вообще нет, можно либо выдать ошибку,
+                    # либо (лучше) взять текущего админа/менеджера как тех. привязку
+                    if not user_obj:
+                        user_obj = request.user
+
+                    # Обновляем или создаем связь в промежуточной таблице
+                    link, created = ContractEndUser.objects.get_or_create(
+                        contractmodel=contract,
+                        defaults={'user': user_obj, 'organization': org_obj}
+                    )
+                    if not created:
+                        link.organization = org_obj
+                        link.user = user_obj
+                        link.save()
+                else:
+                    # Если организация не выбрана — удаляем связь
+                    ContractEndUser.objects.filter(contractmodel=contract).delete()
+                # -------------------------------
                 contract.save()
-                form.save_m2m()
                 formset.save()
-            form.save_m2m()
-            contract.save()
-            return redirect('list-contracts')
-        else:
-            print(form.errors)
+                return redirect('list-contracts')
 
     formsets = [
         {'formset': formset, 'label': 'Оборудование'},
