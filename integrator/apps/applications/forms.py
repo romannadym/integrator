@@ -55,38 +55,41 @@ class ApplicationForm(forms.ModelForm):
     def __init__(self, user=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Делаем поле client необязательным для валидации формы
+        self.fields['client'].required = False
+
         # Установка приоритета по умолчанию
         from applications.models import AppPriorityModel
-        self.fields['priority'].initial = AppPriorityModel.objects.get(id=3)
-
-        # Подготовка подзапроса для максимального ID
-        max_user_subquery = self.User.objects.filter(
-            organization=OuterRef('organization')
-        ).order_by('-id').values('id')[:1]
+        try:
+            self.fields['priority'].initial = AppPriorityModel.objects.get(id=3)
+        except AppPriorityModel.DoesNotExist:
+            pass
 
         # Настройка поля client
         if user is not None:
-            # Если передан конкретный пользователь - выбираем только его
             self.fields['client'].queryset = self.User.objects.filter(
                 Q(groups__name='Заказчик') &
                 Q(is_active=True) &
-                Q(id=user.id)  # Фильтр по конкретному ID пользователя
+                Q(id=user.id)
             ).annotate(
                 organization_name=F('organization__name')
             )
             self.fields['client'].initial = user
-            self.fields['client'].disabled = True  # Блокируем выбор для переданного пользователя
+            self.fields['client'].disabled = True
         else:
-            # Если пользователь не передан - используем client из POST-данных (если есть)
             client_id = self.data.get('client') if hasattr(self, 'data') else None
-            if client_id:
+            if client_id and str(client_id).isdigit():
                 self.fields['client'].queryset = self.User.objects.filter(
                     Q(groups__name='Заказчик') &
                     Q(is_active=True) &
-                    Q(id=client_id)  # Берём пользователя из POST-запроса
+                    Q(id=int(client_id))
                 ).annotate(
                     organization_name=F('organization__name')
                 )
+            else:
+                # Если id не передан или он битый, отдаем пустой кверисет,
+                # чтобы форма не ругалась на отсутствие выбора
+                self.fields['client'].queryset = self.User.objects.none()
 
 AppDocumentsFormset = inlineformset_factory(
     ApplicationModel, AppDocumentsModel,

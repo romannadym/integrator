@@ -101,11 +101,25 @@ def AddApplicationView(request): #Создание заявки
             return JsonResponse(list(equipments), safe=False)
 
         # === 2. БЛОК СОХРАНЕНИЯ ЗАЯВКИ ===
-        if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
+        is_staff = request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists()
+
+        if not is_staff:
             form = ApplicationForm(request.user, request.POST)
         else:
-            print("request body:", request.POST)
-            form = ApplicationForm(None, request.POST)
+            # Если это персонал, создаем копию POST-данных, чтобы иметь возможность их менять
+            post_data = request.POST.copy()
+            client_id = post_data.get('client')
+
+            # Проверяем, существует ли переданный клиент в базе
+            if client_id and str(client_id).isdigit():
+                client_exists = User.objects.filter(id=int(client_id), is_active=True).exists()
+                if not client_exists:
+                    post_data['client'] = '' # Очищаем битый ID, чтобы валидатор пропустил форму
+            else:
+                post_data['client'] = ''
+
+            print("Очищенный request body для персонала:", post_data)
+            form = ApplicationForm(None, post_data)
 
         from applications.models import AppStatusModel
 
@@ -118,8 +132,12 @@ def AddApplicationView(request): #Создание заявки
                 app.contact_user_id = contact_id
 
             # Установка полей на основе групп пользователя
-            if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
+            if not is_staff:
                 app.client = request.user
+            else:
+                # Если это персонал и прилетел валидный клиент — он запишется из формы автоматически.
+                # Если клиент был битый (мы его очистили), app.client останется NULL (None).
+                pass
 
             if request.user.groups.filter(name='Инженер').exists():
                 app.engineer = request.user
@@ -279,6 +297,8 @@ def AddApplicationView(request): #Создание заявки
 
             return JsonResponse({'message': 1})
         else:
+            print("=== ОШИБКИ ВАЛИДАЦИИ ФОРМЫ ===")
+            print(form.errors)
             return JsonResponse({'error': 'Форма заявки не прошла валидацию'})
 
     # Для GET запроса формы
