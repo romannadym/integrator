@@ -540,8 +540,22 @@ class ApplicationsListAPIViewNew(APIView):
                 equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value('<br> (S/n: '), 'equipment__sn', Value(')')),
                 status_name = F('status__name'),
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
-                organization_id = F('equipment__contract__client__organization__id'),
-                organization_name = F('equipment__contract__client__organization__name'),
+                # 1. ID организации (берем из контракта, если пусто - берем client_id)
+                organization_id = Coalesce(
+                    F('equipment__contract__client__organization__id'),
+                    F('client_id')
+                ),
+
+                # 2. Название организации (ищем через Subquery по organization_id)
+                organization_name = Func(
+                    Coalesce(
+                        F('equipment__contract__client__organization__name'),
+                        Subquery(User.objects.filter(organization_id=OuterRef('client_id')).values('organization__name')[:1])
+                    ),
+                    Value(''),
+                    function='IFNULL',
+                    output_field=CharField()
+                ),
                 end_user_organization_id = Coalesce(
                     F('contract__contractenduser__organization__id'), # Новое поле в связи
                     F('equipment__contract__end_users__organization__id')        # Старое поле в профиле юзера
@@ -1255,13 +1269,19 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         User = get_user_model()
         client_contacts = []
 
-        # Находим организацию заказчика (через поле client в заявке)
+        # ОПРЕДЕЛЯЕМ ОРГАНИЗАЦИЮ С УЧЕТОМ СПЕЦИФИКИ АДМИНСКИХ ЗАЯВОК
         if application.contract and application.contract.organization:
+            # Если контракт есть — берем организацию из контракта
             org_id = application.contract.organization.id
-            # Получаем всех пользователей этой организации
+        else:
+            # Если контракта нет (пустая заявка от админа), то в поле client_id
+            # на самом деле записан чистый ID организации из фронтенда создания.
+            org_id = application.client_id
+
+        # Если организация успешно найдена одним из способов — подтягиваем её пользователей
+        if org_id:
             contacts_qs = User.objects.filter(organization_id=org_id, is_active=True)
 
-            # Формируем список (можно вынести в отдельный сериализатор)
             for user in contacts_qs:
                 fio = f"{user.last_name} {user.first_name}".strip()
                 client_contacts.append({
@@ -1333,21 +1353,41 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
         User = get_user_model()
 
         # Обработка оборудования
-        if data.get('equipment_str'):
-            eq_list = data.get('equipment_str')[0:-1].split(' (S/n: ')
+        eq_str = data.get('equipment_str')
+        if eq_str and ' (S/n: ' in eq_str:
+            eq_list = eq_str[0:-1].split(' (S/n: ')
             try:
                 from django.utils import timezone
-                data['equipment'] = ContractEquipmentModel.objects.filter(
-                        sn=eq_list[1],
-                        contract__enddate__gte=timezone.now().date()  # Только с действующим контрактом
-                    ).order_by('-id').first().id
-                print("КРЮК:", data['equipment'])
-            except ContractEquipmentModel.DoesNotExist:
-                return Response({'message': 'Оборудование не найдено по серийному номеру'},
-                                status=status.HTTP_406_NOT_ACCEPTABLE)
+                # Ищем оборудование
+                found_eq = ContractEquipmentModel.objects.filter(
+                    sn=eq_list[1],
+                    contract__enddate__gte=timezone.now().date()
+                ).order_by('-id').first()
 
-        if int(data.get('equipment', 0)) != application.equipment_id and application.changed:
-            data['equipment'] = application.equipment_id
+                if not found_eq:
+                    return Response({'message': 'Оборудование не найдено или истек контракт'},
+                                    status=status.HTTP_406_NOT_ACCEPTABLE)
+
+                data['equipment'] = found_eq.id
+
+                # АВТОМАТИЧЕСКАЯ ПРИВЯЗКА КОНТРАКТА
+                # Обновляем контракт у заявки напрямую, так как он не валидируется через serializer (его нет в полях)
+                application.contract = found_eq.contract
+
+            except Exception as e:
+                return Response({'message': f'Ошибка обработки оборудования: {str(e)}'},
+                                status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Если пришла пустая строка (админ очистил поле)
+            data['equipment'] = None
+            application.contract = None
+
+        # Проверка на запрет изменения (если применимо)
+        # Обрати внимание: int(None) выдаст ошибку, поэтому используем безопасное сравнение
+        new_eq_id = data.get('equipment')
+        if new_eq_id is not None and application.equipment_id is not None:
+            if int(new_eq_id) != application.equipment_id and getattr(application, 'changed', False):
+                data['equipment'] = application.equipment_id
 
         # Получаем текущих и новых инженеров
         current_engineers = set(application.engineers.values_list('id', flat=True))
@@ -1367,22 +1407,33 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'type': 'edit'
         }
         new_contact_id = data.get('contact_user')
-        if new_contact_id and int(new_contact_id) != application.contact_user_id:
-            try:
-                new_contact = User.objects.get(id=new_contact_id)
-                fio = f"{new_contact.last_name} {new_contact.first_name}".strip()
-                contact_display = fio if fio else new_contact.email
+        if new_contact_id: # Если прислали конкретный ID (не None и не 0)
+            if int(new_contact_id) != application.contact_user_id:
+                try:
+                    new_contact = User.objects.get(id=int(new_contact_id))
+                    fio = f"{new_contact.last_name} {new_contact.first_name}".strip()
+                    contact_display = fio if fio else new_contact.email
 
+                    history.append({
+                        'type': 2,
+                        'text': f'Изменено контактное лицо на "{contact_display}"',
+                        'application': application,
+                        'author': request.user
+                    })
+                    application.contact_user = new_contact
+                except User.DoesNotExist:
+                    return Response({'message': 'Указанный контакт не найден'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Если прислали null (админ очистил поле)
+            if application.contact_user_id is not None:
                 history.append({
                     'type': 2,
-                    'text': f'Изменено контактное лицо на "{contact_display}"',
+                    'text': 'Контактное лицо удалено из заявки',
                     'application': application,
                     'author': request.user
                 })
-                # Мы можем либо оставить это для сериализатора, либо обновить вручную
-                application.contact_user = new_contact
-            except User.DoesNotExist:
-                return Response({'message': 'Указанный контакт не найден'}, status=status.HTTP_400_BAD_REQUEST)
+            application.contact_user = None
+            data['contact_user'] = None # Обновляем data, чтобы сериализатор тоже скушал null
         # Обработка изменений статуса
         if application.status_id != data.get('status'):
             app_status = StatusModel.objects.get(id=data['status'])

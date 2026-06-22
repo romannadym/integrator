@@ -50,8 +50,11 @@
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Контактное лицо:</h6>
                             <select class="js-example-basic-single" name="contact_user" id="id_contact_user" required>
+                                {% if permissions.is_admin and not data.application.contact_user_id %}
+                                  <option value="">----</option>
+                                {% endif %}
                                 {% for contact in data.client_contacts %}
-                                  <option value="{{ contact.id }}" {% if contact.id == data.application.contact_id %} selected {% endif %}>{{ contact.full_name }} </option>
+                                  <option value="{{ contact.id }}" {% if contact.id == data.application.contact_user_id %} selected {% endif %}>{{ contact.full_name }} </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -85,13 +88,23 @@
     $('#t-priority').select2();
     $('#t-engineer').select2();
     $('#id_contact_user').select2();
+    // Получаем contract_id (если он есть) или 'null'
+    let contract_id = "{{ data.application.contract_id|default_if_none:'' }}";
+    // Получаем client_id (чтобы найти организацию)
+    let client_id = "{{ data.application.client_id|default_if_none:'' }}";
+
     $.ajax({
         url: '/applications/add/',
         method: 'POST',
-        data: { contract_id: {{ data.application.contract_id }}, sn: '' },
+        // Передаем оба параметра. Бэкенд сначала поищет по contract_id,
+        // а если его нет (заявка пустая) - найдет всё активное оборудование клиента.
+        data: { contract_id: contract_id, client: client_id, sn: '' },
         headers: { 'X-CSRFToken': getCookie('csrftoken') },
         dataType: 'json',
         success: function(result) {
+            // Добавляем пустую опцию, чтобы админ мог оставить поле пустым
+            $('#t-equipments').append('<option value=""></option>');
+
             result.forEach(function (item){
               let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`
               let selected = ''
@@ -99,7 +112,10 @@
                 selected = 'selected'
               }
               $('#t-equipments').append(`<option value="${equipment}" ${selected} >${equipment}</option>`)
-            })
+            });
+
+            // Инициализируем Select2 после загрузки опций
+            $('#t-equipments').trigger('change');
         }
     });
 
@@ -146,12 +162,6 @@
         data.engineers = $('#t-engineer').val(); // добавляем engineer, если есть значение
     }
     console.log(data)
-    if(!data.equipment_str){
-      alertError(`Поле оборудование не мжет быть пустым`)
-      submitButton.prop('disabled', false);
-      submitButton.html(originalText); // Восстанавливаем текст кнопки
-      return
-    }
     $.ajax({
         url: '/applications/api/edit/'+ticket_id,
         method: 'PUT',

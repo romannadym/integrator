@@ -31,7 +31,14 @@
                                     <h4 class="fw-semibold" id="ticket-title">#{{ data.application.id }}</h4>
                                     <input type="hidden" id="ticket_id" value="{{ data.application.id }}"/>
                                     <div class="hstack gap-3 flex-wrap">
-                                        <div class="text-muted"><i class="ri-building-line align-bottom me-1"></i><span id="ticket-client">{{ data.application.end_user_organization_name }}</span></div>
+                                        <div class="text-muted"><i class="ri-building-line align-bottom me-1"></i>
+                                          <span id="ticket-client">
+                                                  {% if data.application.end_user_organization_name %}
+                                                      {{ data.application.end_user_organization_name }}
+                                                  {% else %}
+                                                      {{ client_org_name }}
+                                                  {% endif %}
+                                          </span></div>
                                         <div class="vr"></div>
                                         <div class="text-muted">Дата создания : <span class="fw-medium " id="create-date">{{ data.application.formatted_date }}</span></div>
                                         <div class="vr"></div>
