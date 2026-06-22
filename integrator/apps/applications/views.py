@@ -7,12 +7,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, permission_required
 from django.views.decorators.http import require_POST
 from django.conf import settings
-
-from django.db.models import Subquery, OuterRef, Value, Q, F, Case, When, IntegerField, CharField
+from django.template.loader import render_to_string
+from django.core.mail import EmailMessage
+from django.db.models import Subquery, OuterRef, Value, Q, F, Case, When, IntegerField, CharField, Max
 from django.db.models.functions import Concat, Trim
-
+from django.http import JsonResponse, HttpResponse
 from applications.models import AppPriorityModel, StatusModel, ApplicationModel, EquipmentConfigModel, AppHistoryModel
-
+from django.utils import timezone
 from equipments.models import EquipmentModel
 
 from contracts.models import ContractEquipmentModel
@@ -27,24 +28,29 @@ from applications.api.api import *
 from integrator.apps.api_services import *
 from accounts.api.api import ContactsListAPIView
 
-from applications.forms import ApplicationForm, AppDocumentsFormset, StaffApplicationForm, ClientApplicationForm
-from applications.forms import AppEditCommentForm, AppDeleteCommentForm
+from applications.forms import ApplicationForm, AppDocumentsFormset, StaffApplicationForm, ClientApplicationForm, AppEditCommentForm, AppDeleteCommentForm
 
 from applications.permissions import IsAppAdmin, IsAppStaff
 from integrator.apps.functions import is_admin_or_engineer, get_prms_from_ids
 
 @login_required
 @permission_required('applications.add_applicationmodel')
-def AddApplicationView(request): #Создание заявки
+def AddApplicationView(request):  # Создание заявки
     User = get_user_model()
-    doc_formset = AppDocumentsFormset()
+
+    # Инициализация формсета для GET-запроса (или как заглушка)
+    try:
+        doc_formset = AppDocumentsFormset()
+    except NameError:
+        doc_formset = None
 
     if request.method == "POST":
-        from django.http import JsonResponse, HttpResponse
         from contracts.models import ContractModel
-        from django.db.models import Max
+        from applications.models import AppStatusModel, AppHistoryModel, StatusModel
 
-        # === 1. БЛОК АЯКС-ПОДГРУЗКИ ОБОРУДОВАНИЯ ===
+        # =====================================================================
+        # === 1. БЛОК АЯКС-ПОДГРУЗКИ ОБОРУДОВАНИЯ (Вызывается при изменении клиента) ===
+        # =====================================================================
         if 'problem' not in request.POST:
             org_id = request.POST.get('client')
             contract_id = request.POST.get('contract_id')
@@ -57,15 +63,12 @@ def AddApplicationView(request): #Создание заявки
             if search_sn is None:
                 search_sn = ''
 
-            # --- ПРАВИЛЬНАЯ ПРОВЕРКА С ПРИОРИТЕТОМ CONTRACT_ID ---
-            # Вариант 1: Запрос из редактирования (передан контракт)
+            # --- Проверка контрактов оборудования ---
             if contract_id and str(contract_id).isdigit():
                 equipments_qs = ContractEquipmentModel.objects.filter(
                     contract_id=int(contract_id),
                     contract__enddate__gt=datetime.now().date()
                 )
-
-            # Вариант 2: Запрос из создания (передана организация)
             elif org_id and str(org_id).isdigit():
                 equipments_qs = ContractEquipmentModel.objects.filter(
                     Q(
@@ -74,12 +77,10 @@ def AddApplicationView(request): #Создание заявки
                     ) &
                     Q(contract__enddate__gt=datetime.now().date())
                 )
-
-            # Вариант 3: Защита, если не прилетело ни то, ни другое
             else:
                 return JsonResponse([], safe=False)
 
-            # Если передан поисковый запрос по серийнику/модели, фильтруем по нему
+            # Фильтрация по поисковому запросу (серийник/модель)
             if search_sn:
                 equipments_qs = equipments_qs.filter(
                     Q(sn__icontains=search_sn) |
@@ -91,6 +92,7 @@ def AddApplicationView(request): #Создание заявки
                 'equipment__id', 'equipment__brand__name', 'equipment__model__name', 'sn'
             ).annotate(max=Max('id'))
 
+            # Догрузка конфигураций для персонала
             if request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists():
                 if len(equipments) == 1:
                     confs = EquipmentConfigModel.objects.filter(equipment__id=equipments[0]['equipment__id'])
@@ -100,43 +102,51 @@ def AddApplicationView(request): #Создание заявки
 
             return JsonResponse(list(equipments), safe=False)
 
-        # === 2. БЛОК СОХРАНЕНИЯ ЗАЯВКИ ===
+        # =====================================================================
+        # === 2. БЛОК ВАЛИДАЦИИ И СОХРАНЕНИЯ ЗАЯВКИ ===
+        # =====================================================================
         is_staff = request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists()
-
+        is_admin = request.user.groups.filter(name='Администратор').exists() # <-- НОВАЯ ПЕРЕМЕННАЯ
         if not is_staff:
             form = ApplicationForm(request.user, request.POST)
         else:
-            # Если это персонал, создаем копию POST-данных, чтобы иметь возможность их менять
+            # Для персонала делаем копию, чтобы иметь возможность очистить невалидный ID клиента
             post_data = request.POST.copy()
             client_id = post_data.get('client')
 
-            # Проверяем, существует ли переданный клиент в базе
             if client_id and str(client_id).isdigit():
                 client_exists = User.objects.filter(id=int(client_id), is_active=True).exists()
                 if not client_exists:
-                    post_data['client'] = '' # Очищаем битый ID, чтобы валидатор пропустил форму
+                    post_data['client'] = ''  # Сбрасываем битый ID
             else:
                 post_data['client'] = ''
 
             print("Очищенный request body для персонала:", post_data)
             form = ApplicationForm(None, post_data)
 
-        from applications.models import AppStatusModel
-
         if form.is_valid():
             app = form.save(commit=False)
 
-            # Привязываем контактное лицо из name="contact" модалки
-            contact_id = request.POST.get('contact')
-            if contact_id:
-                app.contact_user_id = contact_id
+            # --- ЖЕСТКАЯ ПРОВЕКА И ПРИВЯЗКА КОНТАКТНОГО ЛИЦА ---
+            contact_id = request.POST.get('contact_user')
+            if not is_admin:
+                # Обычный клиент: поле строго обязательно
+                if contact_id and str(contact_id).isdigit():
+                    app.contact_user_id = int(contact_id)
+                else:
+                    return JsonResponse({'error': 'Поле "Контактное лицо" обязательно для заполнения.'})
+            else:
+                # Админ: если заполнено — привязываем, если пусто — разрешаем NULL
+                if contact_id and str(contact_id).isdigit():
+                    app.contact_user_id = int(contact_id)
+                else:
+                    app.contact_user = None
 
-            # Установка полей на основе групп пользователя
+            # --- Привязка Создателя и Клиента заявки ---
             if not is_staff:
                 app.client = request.user
             else:
-                # Если это персонал и прилетел валидный клиент — он запишется из формы автоматически.
-                # Если клиент был битый (мы его очистили), app.client останется NULL (None).
+                # Для персонала валидный клиент запишется автоматически из формы (form.save())
                 pass
 
             if request.user.groups.filter(name='Инженер').exists():
@@ -147,11 +157,10 @@ def AddApplicationView(request): #Создание заявки
 
             app.creator = request.user
 
-            # Разбор оборудования и ПРИВЯЗКА КОНТРАКТА
+            # --- ЖЕСТКАЯ ПРОВЕРКА ОБОРУДОВАНИЯ И ПРИВЯЗКА КОНТАКТА ---
             eq_raw = request.POST.get('equipment')
             if eq_raw and ' (S/n: ' in eq_raw:
                 eq_list = eq_raw[0:-1].split(' (S/n: ')
-                from django.utils import timezone
 
                 found_eq = ContractEquipmentModel.objects.filter(
                     sn=eq_list[1],
@@ -160,31 +169,43 @@ def AddApplicationView(request): #Создание заявки
 
                 if found_eq:
                     app.equipment = found_eq
-                    app.contract = found_eq.contract  # Пишем контракт в заявку
+                    app.contract = found_eq.contract  # Автоматически пишем контракт из оборудования
+                elif not is_admin:
+                    return JsonResponse({'error': 'Выбранное оборудование не найдено или контракт по нему истек.'})
+            else:
+                # Если оборудование не пришло в POST-запросе
+                if not is_admin:
+                    # Обычному пользователю отдаем ошибку
+                    return JsonResponse({'error': 'Поле "Оборудование" обязательно для заполнения.'})
+                else:
+                    # Админу/Инженеру разрешаем создать заявку без оборудования и без контракта
+                    app.equipment = None
+                    app.contract = None
 
-            print("КРЮК:", app.equipment)
-            app.save()  # Сохраняем
+            print("КРЮК (Оборудование):", app.equipment)
+            app.save()  # Сохраняем заявку в БД
 
-            # Перемещение временных файлов
-            import json
-            from django.core.files.base import File
-            from applications.models import AppDocumentsModel
+            # --- Перемещение временных файлов FilePond в AppDocumentsModel ---
             uploaded_files_raw = request.POST.get('uploaded_files', '[]')
             if uploaded_files_raw:
-                uploaded_file_ids = json.loads(uploaded_files_raw)
-                for file_id in uploaded_file_ids:
-                    temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
-                    if os.path.exists(temp_file_path):
-                        filename_with_uuid = os.path.basename(file_id)
-                        parts = filename_with_uuid.split('_', 1)
-                        original_filename = parts[1] if len(parts) > 1 else filename_with_uuid
+                try:
+                    uploaded_file_ids = json.loads(uploaded_files_raw)
+                    from applications.models import AppDocumentsModel
+                    for file_id in uploaded_file_ids:
+                        temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
+                        if os.path.exists(temp_file_path):
+                            filename_with_uuid = os.path.basename(file_id)
+                            parts = filename_with_uuid.split('_', 1)
+                            original_filename = parts[1] if len(parts) > 1 else filename_with_uuid
 
-                        doc = AppDocumentsModel(application=app, name=original_filename)
-                        with open(temp_file_path, 'rb') as f:
-                            doc.document.save(original_filename, File(f), save=True)
-                        os.remove(temp_file_path)
+                            doc = AppDocumentsModel(application=app, name=original_filename)
+                            with open(temp_file_path, 'rb') as f:
+                                doc.document.save(original_filename, File(f), save=True)
+                            os.remove(temp_file_path)
+                except Exception as e:
+                    print(f"Ошибка сохранения файлов FilePond: {e}")
 
-            # Создание статуса и истории
+            # --- Создание начального статуса и истории заявки ---
             AppStatusModel.objects.create(status=app.status, application=app)
             AppHistoryModel.objects.create(
                 type=1,
@@ -193,11 +214,8 @@ def AddApplicationView(request): #Создание заявки
                 author=request.user
             )
 
-            # Отправка email клиенту (БЕЗОПАСНАЯ)
-            from django.template.loader import render_to_string
-            from django.core.mail import EmailMessage
+            # --- Безопасная отправка Email КЛИЕНТУ ---
             import telegram
-
             if app.contact_user and app.contact_user.email:
                 text = render_to_string('applications/mail.html', {
                     'id': app.id,
@@ -235,7 +253,7 @@ def AddApplicationView(request): #Создание заявки
                     author=request.user
                 )
 
-            # Отправка email инженеру
+            # --- Отправка Email ИНЖЕНЕРУ ---
             if app.status.id == 6 and app.engineer and app.engineer.email:
                 text = render_to_string('applications/mail.html', {
                     'id': app.id,
@@ -266,7 +284,7 @@ def AddApplicationView(request): #Создание заявки
                         author=request.user
                     )
 
-            # Telegram уведомление
+            # --- Telegram уведомление в канал ---
             text = render_to_string('applications/telegram.html', {
                 'id': app.id,
                 'url': request.build_absolute_uri(app.get_absolute_url()),
@@ -299,11 +317,11 @@ def AddApplicationView(request): #Создание заявки
         else:
             print("=== ОШИБКИ ВАЛИДАЦИИ ФОРМЫ ===")
             print(form.errors)
-            return JsonResponse({'error': 'Форма заявки не прошла валидацию'})
+            return JsonResponse({'error': 'Форма заявки не прошла валидацию', 'details': form.errors})
 
-    # Для GET запроса формы
-    # (Оставляем твою старую инициализацию переменной form, если она объявлена во внешнем скоупе,
-    # либо инициализируем пустую)
+    # =====================================================================
+    # === 3. ДЛЯ ОБЫЧНОГО GET-ЗАПРОСА СТРАНИЦЫ ===
+    # =====================================================================
     try:
         if not request.user.groups.filter(name='Администратор').exists() and not request.user.groups.filter(name='Инженер').exists():
             form = ApplicationForm(request.user)
@@ -333,10 +351,25 @@ def EditApplicationView(request, application_id): #Редактирование 
         app = GetApplication(application_id)
         if not app:
                 raise ApplicationModel.DoesNotExist()
-        confs = EquipmentConfigModel.objects.filter(equipment = app.equipment.equipment).annotate(filename = Value(''))
+        # Безопасное получение конфигураций оборудования
+        if app.equipment:
+            confs = EquipmentConfigModel.objects.filter(equipment=app.equipment.equipment).annotate(filename=Value(''))
+        else:
+            confs = EquipmentConfigModel.objects.none()
         for doc in confs:
             doc.filename = os.path.basename(doc.document.name)
-
+        # === НОВЫЙ БЛОК: Получаем название организации из client_id ===
+        client_org_name = ""
+        if app.client_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            # Так как в client_id лежит ID организации, ищем любого пользователя
+            # из этой организации, чтобы безопасно вытащить её название
+            user_in_org = User.objects.filter(organization_id=app.client_id).select_related('organization').first()
+            if user_in_org and user_in_org.organization:
+                client_org_name = user_in_org.organization.name
+            else:
+                client_org_name = f"Организация #{app.client_id}"
         form = EditApplicationForm(instance = app)
         formset = AppStatusFormset(instance = app)
         document = EditAppDocumentsFormset(instance = app)
@@ -345,7 +378,7 @@ def EditApplicationView(request, application_id): #Редактирование 
 
 
 
-        context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'permissions': permissions, 'spares': spares, 'document': document, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
+        context = {'data': data, 'form': form, 'formset': formset, 'comment': comment, 'permissions': permissions, 'spares': spares, 'document': document, 'client_org_name': client_org_name, 'confs': confs, 'admin': request.user.groups.filter(name = 'Администратор').exists()}
         return render(request, 'applications/edit/edit.html', context)
     except ApplicationModel.DoesNotExist:
         # Рендерим страницу-заглушку для несуществующей заявки

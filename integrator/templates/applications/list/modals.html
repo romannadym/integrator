@@ -17,7 +17,6 @@
                           <select class="js-example-basic-single" name="client" id="id_client" required>
                               <option value=""></option>
                           </select>
-
                       </div>
                       {% else %}
                         <div class="" style="display:none">
@@ -25,59 +24,45 @@
                                 <option value="{{ user.organization.id }}" selected>---</option>
                           </select>
                         </div>
-
                       {% endif %}
-                        <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Приоритет заявки:</h6>
                             <select class="js-example-basic-single" name="priority" id="id_priority" required>
                                 <option value=""></option>
                             </select>
                         </div>
-                        <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Оборудование:</h6>
-                            <select class="js-example-basic-single" name="equipment" id="id_equipment" required>
+                            <select class="js-example-basic-single" name="equipment" id="id_equipment" {% if not permissions.is_staff %}required{% endif %}>
                                 <option value=""></option>
                             </select>
                         </div>
-                        <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Описание проблемы:</h6>
                             <textarea class="form-control" name="problem" id="problem-field" rows="3" required></textarea>
                         </div>
-                        <!--end col-->
                         <div class="col-lg-12">
                             <h6 class="fw-semibold">Контактное лицо:</h6>
-                            <select class="js-example-basic-single" name="contact_user" id="id_contact_user" required>
+                            <select class="js-example-basic-single" name="contact_user" id="id_contact_user" {% if not permissions.is_staff %}required{% endif %}>
                                 <option value=""></option>
                             </select>
                         </div>
-                        <!--end col-->
                         <div class="col-lg-12">
                             <div class="card">
                                 <div class="card-header">
                                     <h6 class="card-title mb-0">Файлы</h6>
-                                </div><!-- end card header -->
-
-                                <div class="card-body">
+                                </div><div class="card-body">
                                       <p class="text-muted">Возможна загрузка только текстовых форматов, архивов, изображений.<br>Размер одного загружаемого файла не должен превышать 50 мегабайт</p>
                                     <input type="file" class="filepond filepond-input-multiple" multiple name="filepond" data-allow-reorder="true" data-max-file-size="50MB" data-max-files="50">
                                     <input type="hidden" name="uploaded_files" id="uploaded-files">
                                 </div>
-                                <!-- end card body -->
-                            </div>
-                            <!-- end card -->
-                        </div> <!-- end col -->
-
+                                </div>
+                            </div> </div>
                     </div>
-                    <!--end row-->
-                </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">
                         <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
                         <button type="submit" class="btn btn-success" id="add-btn">Создать</button>
-                        <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
                     </div>
                 </div>
                 <input type="hidden" name="documents-TOTAL_FORMS" value="1" id="id_documents-TOTAL_FORMS">
@@ -88,10 +73,11 @@
         </div>
     </div>
 </div>
-<!--end modal-->
-
 <script type="text/javascript">
     $(document).ready(function () {
+      // Сохраняем статус прав пользователя в JS для динамической логики пустых опций
+      const isStaff = {{ permissions.is_staff|yesno:"true,false" }};
+
       function getCookie(name) {
           let cookieValue = null;
           if (document.cookie && document.cookie !== '') {
@@ -111,9 +97,8 @@
           evn.preventDefault();
 
           // Блокируем кнопку отправки
-          let submitButton = $('#add-btn'); // Убедитесь, что у кнопки отправки есть id='submit-button'
+          let submitButton = $('#add-btn');
           submitButton.prop('disabled', true);
-          // Сохраняем текст, если надо восстановить потом
           let originalText = submitButton.html();
 
           // Блокируем и добавляем фиксированные размеры
@@ -144,7 +129,7 @@
 
                   } else {
                     let errorText = Object.entries(data).map(([field, msg]) => `<p>"${field}" - ${msg[0]}</p>`).join('');
-                    alertError(data.error)
+                    alertError(data.error || errorText)
                   }
               },
               error: function(e) {
@@ -166,17 +151,11 @@
           url: '/applications/api/add/',
           type: 'GET',
           success: function(data) {
-          //  console.log(data)
             if(data.organization.results){
               data.organization.results.forEach(function(item) {
                   $('#id_client').append(`<option value="${item.id}">${item.text}</option>`)
               })
             }
-            /*if(data.clients){
-              data.clients.forEach(function(item) {
-                  $('#id_client').append(`<option value="${item.id}">${item.organization_name}</option>`)
-              })
-            }*/
 
             if(data.priorities){
               data.priorities.forEach(function(item) {
@@ -200,71 +179,70 @@
                   dataType: 'json',
                   success: function(result) {
                     $('#id_contact_user').empty()
-                  //  console.log(result)
-                      if(Array.isArray(result.data) && result.data.length > 0){
+
+                    // Если зашел админ, добавляем пустую дефолтную строку, чтобы поле можно было не выбирать
+                    if (isStaff) {
+                        $('#id_contact_user').append('<option value=""></option>');
+                    }
+
+                    if(Array.isArray(result.data) && result.data.length > 0){
                         result.data.forEach(function (item){
                           let displayName;
 
                           // Проверяем, есть ли хотя бы фамилия или имя
                           if ((item.last_name && item.last_name.trim() !== "") || (item.first_name && item.first_name.trim() !== "")) {
-                              // Если есть, склеиваем их (используем метод trim на случай, если там только пробелы)
                               displayName = `${item.last_name || ''} ${item.first_name || ''}`.trim();
                           } else {
-                              // Если оба поля пустые, используем email
                               displayName = item.email;
                           }
                           $('#id_contact_user').append(`<option value="${item.id}" >${displayName}</option>`)
                         })
-                        $('#id_contact_user').val(result.data[0].id)
 
-                      }
-                    //  console.log(result)
-                      EquipmentList(client_id)
+                        // Если админ — оставляем поле пустым по умолчанию, иначе выбираем первого
+                        if (!isStaff) {
+                            $('#id_contact_user').val(result.data[0].id).trigger('change');
+                        } else {
+                            $('#id_contact_user').val('').trigger('change');
+                        }
+                    }
+                    EquipmentList(client_id)
                   }
               });
       });
 
       {% if not permissions.is_staff %}
-
           let client_id = $('#id_client').val();  // сохраняем значение заранее
-          if(!client_id){
-            return
-          }
-          $.ajax({
-              url: '/applications/get_contacts/',
-              method: 'POST',
-              headers: { 'X-CSRFToken': getCookie('csrftoken') },
-              data: { client: client_id },
-              dataType: 'json',
-              success: function(result) {
-                $('#id_contact_user').empty()
+          if(client_id){
+              $.ajax({
+                  url: '/applications/get_contacts/',
+                  method: 'POST',
+                  headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                  data: { client: client_id },
+                  dataType: 'json',
+                  success: function(result) {
+                    $('#id_contact_user').empty()
 
-                  if(Array.isArray(result.data) && result.data.length > 0){
-                    result.data.forEach(function (item){
-                      let displayName;
-
-                      // Проверяем, есть ли хотя бы фамилия или имя
-                      if ((item.last_name && item.last_name.trim() !== "") || (item.first_name && item.first_name.trim() !== "")) {
-                          // Если есть, склеиваем их (используем метод trim на случай, если там только пробелы)
-                          displayName = `${item.last_name || ''} ${item.first_name || ''}`.trim();
-                      } else {
-                          // Если оба поля пустые, используем email
-                          displayName = item.email;
+                      if(Array.isArray(result.data) && result.data.length > 0){
+                        result.data.forEach(function (item){
+                          let displayName;
+                          if ((item.last_name && item.last_name.trim() !== "") || (item.first_name && item.first_name.trim() !== "")) {
+                              displayName = `${item.last_name || ''} ${item.first_name || ''}`.trim();
+                          } else {
+                              displayName = item.email;
+                          }
+                          $('#id_contact_user').append(`<option value="${item.id}" >${displayName}</option>`)
+                        })
+                        $('#id_contact_user').val(result.data[0].id).trigger('change');
                       }
-                      $('#id_contact_user').append(`<option value="${item.id}" >${displayName}</option>`)
-                    })
-                    $('#id_contact_user').val(result.data[0].id)
 
+                      EquipmentList(client_id)
                   }
-
-                  EquipmentList(client_id)
-              }
-          });
+              });
+          }
       {% endif  %}
 
       function EquipmentList(client_id) {
           if ( !client_id) return;
-          console.log(client_id)
           $.ajax({
               url: '/applications/add/',
               method: 'POST',
@@ -272,12 +250,20 @@
               headers: { 'X-CSRFToken': getCookie('csrftoken') },
               dataType: 'json',
               success: function(result) {
-                  console.log(result)
-                  $('#id_equipment').empty()
+                  $('#id_equipment').empty();
+
+                  // Добавляем пустую опцию для возможности пропустить выбор
+                  $('#id_equipment').append('<option value=""></option>');
+
                   result.forEach(function (item){
                     let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`
-                    $('#id_equipment').append(`<option value="${equipment}" >${equipment}</option>`)
-                  })
+                    $('#id_equipment').append(`<option value="${item.id || equipment}" >${equipment}</option>`)
+                  });
+
+                  // Если это персонал, сбрасываем селект на пустую строку
+                  if (isStaff) {
+                      $('#id_equipment').val('').trigger('change');
+                  }
               }
           });
       }
@@ -294,12 +280,14 @@
 
       $('#id_equipment').select2({
         dropdownParent: $('#showModalCreateTicket'),
-        placeholder: "-------"
+        placeholder: "-------",
+        allowClear: true
       });
 
       $('#id_contact_user').select2({
         dropdownParent: $('#showModalCreateTicket'),
-        placeholder: "-------"
+        placeholder: "-------",
+        allowClear: true
       });
 
       $('#showModalCreateTicket').on('hidden.bs.modal', function () {
@@ -311,6 +299,7 @@
           $('#id_priority').val(3).trigger('change');
           $('#id_equipment').val(null).trigger('change');
           $('#id_contact_user').val(null).trigger('change');
+
           // Очистка временных файлов
           if (uploadedFiles.length > 0) {
               fetch('/applications/api/clear-temp/', {
@@ -323,15 +312,14 @@
               }).then(() => {
                   uploadedFiles = []; // сбросим массив
                   document.getElementById("uploaded-files").value = '';
-
               });
           }
           // Очистка FilePond
           pondInstances.forEach((pond) => pond.removeFiles());
       });
     });
-      function alertSuccess (text)
-      {
+
+      function alertSuccess (text) {
         Swal.fire({
             html: '<div class="mt-3">' +
                 '<lord-icon src="https://cdn.lordicon.com/lupuorrc.json" trigger="loop" colors="primary:#0ab39c,secondary:#405189" style="width:120px;height:120px"></lord-icon>' +
@@ -348,6 +336,7 @@
             showCloseButton: true
         })
       }
+
       function alertError(text){
         Swal.fire({
             html: '<div class="mt-3">' +
@@ -365,6 +354,7 @@
             showCloseButton: true
         })
       }
+
       FilePond.registerPlugin(
           // encodes the file as base64 data
           FilePondPluginFileEncode,
@@ -375,52 +365,50 @@
           // previews dropped images
           FilePondPluginImagePreview
       );
-      var inputMultipleElements = document.querySelectorAll('input.filepond-input-multiple');
-      const pondInstances = []; // <-- добавили
-      var uploadedFiles = [];
-      if(inputMultipleElements){
-      // loop over input elements
 
-      Array.from(inputMultipleElements).forEach(function (inputElement) {
-        FilePond.setOptions({
-          labelIdle: 'Перетащите файл или <span class="filepond--label-action">Выберите</span>',
-          labelMaxFileSizeExceeded: 'Файл слишком большой',
-          labelMaxFileSize: 'Максимальный размер файла: {filesize}',
-          server: {
-            process: {
-                url: '/applications/api/upload/',
-                onload: (res) => {
-                    const result = JSON.parse(res);
-                    uploadedFiles.push(result.id);
-                    document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
-                    return result.id;
-                }
-            },
-            revert: (uniqueFileId, load, error) => {
-                fetch('/applications/api/revert/', {
-                    method: 'DELETE',
-                    body: uniqueFileId,
-                    headers: {
-                      'X-CSRFToken': getCookie('csrftoken')  // для Django CSRF
+      var inputMultipleElements = document.querySelectorAll('input.filepond-input-multiple');
+      const pondInstances = [];
+      var uploadedFiles = [];
+
+      if(inputMultipleElements){
+          // loop over input elements
+          Array.from(inputMultipleElements).forEach(function (inputElement) {
+            FilePond.setOptions({
+              labelIdle: 'Перетащите файл или <span class="filepond--label-action">Выберите</span>',
+              labelMaxFileSizeExceeded: 'Файл слишком большой',
+              labelMaxFileSize: 'Максимальный размер файла: {filesize}',
+              server: {
+                process: {
+                    url: '/applications/api/upload/',
+                    onload: (res) => {
+                        const result = JSON.parse(res);
+                        uploadedFiles.push(result.id);
+                        document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
+                        return result.id;
                     }
-                }).then(() => {
-                    // Удалить из массива
-                    const index = uploadedFiles.indexOf(uniqueFileId);
-                    if (index > -1) uploadedFiles.splice(index, 1);
-                    document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
-                    load();
-                }).catch(error);
-            },
-            headers: {
-              'X-CSRFToken': getCookie('csrftoken')  // для Django CSRF
+                },
+                revert: (uniqueFileId, load, error) => {
+                    fetch('/applications/api/revert/', {
+                        method: 'DELETE',
+                        body: uniqueFileId,
+                        headers: {
+                          'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    }).then(() => {
+                        const index = uploadedFiles.indexOf(uniqueFileId);
+                        if (index > -1) uploadedFiles.splice(index, 1);
+                        document.getElementById("uploaded-files").value = JSON.stringify(uploadedFiles);
+                        load();
+                    }).catch(error);
+                },
+                headers: {
+                  'X-CSRFToken': getCookie('csrftoken')
+                }
             }
-        }
-          // остальной перевод как выше...
-        });
-          // create a FilePond instance at the input element location
-          const pond = FilePond.create(inputElement); // <-- сохраняем
-          pondInstances.push(pond); // <-- сохраняем
-      })
-      }
+         });
+         const pond = FilePond.create(inputElement);
+         pondInstances.push(pond);
+      });
+    }
   });
 </script>
