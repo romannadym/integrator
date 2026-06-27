@@ -91,9 +91,8 @@
           return cookieValue;
       }
 
-  $('#showModalCreateTicket').on('show.bs.modal', function (event) {
-
-      $('#create-ticket-form').on('submit', function(evn) {
+      // === 1. ОТПРАВКА ФОРМЫ (привязываем ОДИН раз) ===
+      $('#create-ticket-form').off('submit').on('submit', function(evn) {
           evn.preventDefault();
 
           // Блокируем кнопку отправки
@@ -101,7 +100,6 @@
           submitButton.prop('disabled', true);
           let originalText = submitButton.html();
 
-          // Блокируем и добавляем фиксированные размеры
           let buttonWidth = submitButton.outerWidth();
           let buttonHeight = submitButton.outerHeight();
 
@@ -126,7 +124,6 @@
                   if (data.message == 1) {
                     alertSuccess('Заявка принята в работу. Спасибо, что Вы с нами!<br>С уважением, команда xCloud')
                     $('.create-ticket-success').on('click', () => window.location.reload());
-
                   } else {
                     let errorText = Object.entries(data).map(([field, msg]) => `<p>"${field}" - ${msg[0]}</p>`).join('');
                     alertError(data.error || errorText)
@@ -140,23 +137,22 @@
                 alertError(`Произошла ошибка. Попробуйте еще раз.<br>${error}`)
               },
               complete: function() {
-                  // Разблокируем кнопку после завершения запроса
                   submitButton.prop('disabled', false);
-                  submitButton.html('Создать'); // Восстанавливаем текст кнопки
+                  submitButton.html('Создать');
               }
           });
       });
 
+      // === 2. ЗАГРУЗКА СПРАВОЧНИКОВ (при загрузке страницы) ===
       $.ajax({
           url: '/applications/api/add/',
           type: 'GET',
           success: function(data) {
-            if(data.organization.results){
+            if(data.organization && data.organization.results){
               data.organization.results.forEach(function(item) {
                   $('#id_client').append(`<option value="${item.id}">${item.text}</option>`)
               })
             }
-
             if(data.priorities){
               data.priorities.forEach(function(item) {
                   const selected = item.id === 3 ? 'selected' : '';
@@ -166,52 +162,49 @@
           }
       });
 
-      $('#id_client').on('change', function() {
-              let client_id = $(this).val();  // сохраняем значение заранее
-              if(!client_id){
-                return
+      // === 3. ОБРАБОТЧИКИ ИЗМЕНЕНИЙ И ВАЛИДАЦИЯ ===
+      $('#id_client').off('change').on('change', function() {
+          let client_id = $(this).val();
+          if(!client_id){
+            return
+          }
+          $.ajax({
+              url: '/applications/get_contacts/',
+              method: 'POST',
+              headers: { 'X-CSRFToken': getCookie('csrftoken') },
+              data: { client: client_id },
+              dataType: 'json',
+              success: function(result) {
+                $('#id_contact_user').empty()
+
+                if (isStaff) {
+                    $('#id_contact_user').append('<option value=""></option>');
+                }
+
+                if(Array.isArray(result.data) && result.data.length > 0){
+                    result.data.forEach(function (item){
+                      let displayName;
+                      if ((item.last_name && item.last_name.trim() !== "") || (item.first_name && item.first_name.trim() !== "")) {
+                          displayName = `${item.last_name || ''} ${item.first_name || ''}`.trim();
+                      } else {
+                          displayName = item.email;
+                      }
+                      $('#id_contact_user').append(`<option value="${item.id}" >${displayName}</option>`)
+                    })
+
+                    if (!isStaff) {
+                        $('#id_contact_user').val(result.data[0].id).trigger('change');
+                    } else {
+                        $('#id_contact_user').val('').trigger('change');
+                    }
+                }
+                EquipmentList(client_id)
               }
-              $.ajax({
-                  url: '/applications/get_contacts/',
-                  method: 'POST',
-                  headers: { 'X-CSRFToken': getCookie('csrftoken') },
-                  data: { client: client_id },
-                  dataType: 'json',
-                  success: function(result) {
-                    $('#id_contact_user').empty()
-
-                    // Если зашел админ, добавляем пустую дефолтную строку, чтобы поле можно было не выбирать
-                    if (isStaff) {
-                        $('#id_contact_user').append('<option value=""></option>');
-                    }
-
-                    if(Array.isArray(result.data) && result.data.length > 0){
-                        result.data.forEach(function (item){
-                          let displayName;
-
-                          // Проверяем, есть ли хотя бы фамилия или имя
-                          if ((item.last_name && item.last_name.trim() !== "") || (item.first_name && item.first_name.trim() !== "")) {
-                              displayName = `${item.last_name || ''} ${item.first_name || ''}`.trim();
-                          } else {
-                              displayName = item.email;
-                          }
-                          $('#id_contact_user').append(`<option value="${item.id}" >${displayName}</option>`)
-                        })
-
-                        // Если админ — оставляем поле пустым по умолчанию, иначе выбираем первого
-                        if (!isStaff) {
-                            $('#id_contact_user').val(result.data[0].id).trigger('change');
-                        } else {
-                            $('#id_contact_user').val('').trigger('change');
-                        }
-                    }
-                    EquipmentList(client_id)
-                  }
-              });
+          });
       });
 
       {% if not permissions.is_staff %}
-          let client_id = $('#id_client').val();  // сохраняем значение заранее
+          let client_id = $('#id_client').val();
           if(client_id){
               $.ajax({
                   url: '/applications/get_contacts/',
@@ -234,15 +227,14 @@
                         })
                         $('#id_contact_user').val(result.data[0].id).trigger('change');
                       }
-
                       EquipmentList(client_id)
                   }
               });
           }
-      {% endif  %}
+      {% endif %}
 
       function EquipmentList(client_id) {
-          if ( !client_id) return;
+          if (!client_id) return;
           $.ajax({
               url: '/applications/add/',
               method: 'POST',
@@ -251,8 +243,6 @@
               dataType: 'json',
               success: function(result) {
                   $('#id_equipment').empty();
-
-                  // Добавляем пустую опцию для возможности пропустить выбор
                   $('#id_equipment').append('<option value=""></option>');
 
                   result.forEach(function (item){
@@ -260,7 +250,6 @@
                     $('#id_equipment').append(`<option value="${item.id || equipment}" >${equipment}</option>`)
                   });
 
-                  // Если это персонал, сбрасываем селект на пустую строку
                   if (isStaff) {
                       $('#id_equipment').val('').trigger('change');
                   }
@@ -268,6 +257,7 @@
           });
       }
 
+      // === 4. ИНИЦИАЛИЗАЦИЯ SELECT2 ===
       $('#id_client').select2({
         dropdownParent: $('#showModalCreateTicket'),
         placeholder: "-------"
@@ -290,17 +280,15 @@
         allowClear: true
       });
 
-      $('#showModalCreateTicket').on('hidden.bs.modal', function () {
-          // Очищаем обычные поля input и textarea
+      // === 5. ОЧИСТКА ПРИ ЗАКРЫТИИ ОКНА ===
+      $('#showModalCreateTicket').off('hidden.bs.modal').on('hidden.bs.modal', function () {
           $(this).find('form')[0].reset();
 
-          // Очищаем Select2 поля
           $('#id_client').val(null).trigger('change');
           $('#id_priority').val(3).trigger('change');
           $('#id_equipment').val(null).trigger('change');
           $('#id_contact_user').val(null).trigger('change');
 
-          // Очистка временных файлов
           if (uploadedFiles.length > 0) {
               fetch('/applications/api/clear-temp/', {
                   method: 'POST',
@@ -310,15 +298,14 @@
                   },
                   body: JSON.stringify({ files: uploadedFiles })
               }).then(() => {
-                  uploadedFiles = []; // сбросим массив
+                  uploadedFiles = [];
                   document.getElementById("uploaded-files").value = '';
               });
           }
-          // Очистка FilePond
           pondInstances.forEach((pond) => pond.removeFiles());
       });
-    });
 
+      // === 6. АЛЕРТЫ И FILEPOND ===
       function alertSuccess (text) {
         Swal.fire({
             html: '<div class="mt-3">' +
@@ -356,13 +343,9 @@
       }
 
       FilePond.registerPlugin(
-          // encodes the file as base64 data
           FilePondPluginFileEncode,
-          // validates the size of the file
           FilePondPluginFileValidateSize,
-          // corrects mobile image orientation
           FilePondPluginImageExifOrientation,
-          // previews dropped images
           FilePondPluginImagePreview
       );
 
@@ -371,7 +354,6 @@
       var uploadedFiles = [];
 
       if(inputMultipleElements){
-          // loop over input elements
           Array.from(inputMultipleElements).forEach(function (inputElement) {
             FilePond.setOptions({
               labelIdle: 'Перетащите файл или <span class="filepond--label-action">Выберите</span>',

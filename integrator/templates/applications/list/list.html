@@ -127,7 +127,7 @@
                       <thead>
                           <tr>
                               <th>Идентификатор</th>
-                              <th>Описание</th>
+                              <th>Контракт</th><th>Описание</th>
                               {% if permissions.is_staff %}
                               <th>Заказчик</th>
                               <th>Пользователь</th>
@@ -140,7 +140,7 @@
                               {% endif %}
                               <th>Статус</th>
                               <th>Дата изменения</th>
-                              <th>Действия</th>
+                              <th class="no-export" >Действия</th>
 
                           </tr>
                       </thead>
@@ -161,6 +161,7 @@
                             {% if permissions.is_staff %}
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             {% endif %}
+                            <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
                             <th><h5 class="card-title placeholder-glow"><span class="placeholder col-12 placeholder-lg"></span></h5></th>
@@ -219,7 +220,12 @@
               {
                 extend: 'excel',
                 className: 'btn btn-primary ms-3', // Отступ слева для кнопки
-                text: ' Экспорт в <i class="ri-file-excel-2-line me-1"></i>Excel' // Иконка + текст
+                text: ' Экспорт в <i class="ri-file-excel-2-line me-1"></i>Excel', // Иконка + текст
+                exportOptions: {
+                    // Магия здесь: берем ВСЕ колонки (даже скрытые), кроме тех, у кого класс 'no-export'
+                    columns: ':not(.no-export)',
+                    orthogonal: 'export'
+                }
               }
             ],
             processing: true,
@@ -246,6 +252,15 @@
                       return `<a href="/applications/edit/${data}" class="fw-medium link-primary ticket-id">#${data}</a>`;
                   }
                 },
+                // === НАША НОВАЯ СКРЫТАЯ КОЛОНКА ===
+                {
+                  data: 'contract_number',
+                  visible: false, // В браузере ее не будет видно
+                  render: function(data, type, row) {
+                      return data ? data : ''; // Возвращаем номер или пустоту
+                  }
+                },
+                // ==================================
                 {
                   data: 'description',
                   className: 'description-column',
@@ -348,19 +363,17 @@
                   orderable: false
                 },
                 { data: 'last_change_date', orderable: false},
+                // === КОЛОНКА ДЕЙСТВИЯ (Превращается в КОНТРАКТ для выгрузки) ===
                 {
                   data: 'id',
                   render: function(data, type, row) {
-                      // Создание ссылки на страницу деталей заявки с использованием id
-                      console.log(row)
+                      // Если это экспорт, отдаем ID контракта (или пустоту, если его нет)
+                      if (type === 'export') return row.contract_id ? row.contract_id : '';
+
+                      // Для браузера рисуем привычные кнопки:
                       let btnActions = ``;
                       {% if permissions.is_staff %}
-                      const escapedTitle = row.problem
-                      .replace(/&/g, '&amp;')
-                      .replace(/"/g, '&quot;')
-                      .replace(/'/g, '&#39;')
-                      .replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;');
+                      const escapedTitle = row.problem.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
                         btnActions = `<li><a class="dropdown-item edit-item-btn" href="#showModalEditTicket"
                                data-bs-toggle="modal"

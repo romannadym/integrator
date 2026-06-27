@@ -96,12 +96,13 @@ $(document).ready(function () {
        const itemEquipmentName = button.data('editEquipmentName')
        const itemProblem = button.data('editProblem')
        const itemContractId = button.data('editContractId')
+       const itemOrgId = button.data('editOrganizationId');
        const modal = $(this);
           // Если хочешь вставить ID в заголовок или текст:
           modal.find('h5').text(`Редактирование заявки #${itemId}`);
           modal.find('#problem_field_edit').val(itemProblem);
           $('#id_priority_edit').val(itemPriorityId).trigger('change');
-          EquipmentListEdit(itemContractId, itemEquipmentName)
+          EquipmentListEdit(itemContractId, itemOrgId, itemEquipmentName);
 
         $('#updateTicket').off('click').on('click', (evn) => {
           evn.preventDefault();
@@ -147,26 +148,42 @@ $(document).ready(function () {
         $('#problem_field_edit').val(null).trigger('change');
     });
 
-    function EquipmentListEdit(contract_id, equipment_name) {
-        console.log(contract_id)
-        if ( !contract_id) return;
+    function EquipmentListEdit(contract_id, org_id, equipment_name) {
+        // Если нет ни контракта, ни организации — прерываемся
+        if (!contract_id && !org_id) {
+            $('#id_equipment_edit').empty().append('<option value=""></option>').trigger('change');
+            return;
+        }
 
         $.ajax({
             url: '/applications/add/',
             method: 'POST',
-            data: { contract_id: contract_id, sn: '' },
+            // Отправляем оба параметра (или пустые строки, если undefined)
+            data: {
+                contract_id: contract_id || '',
+                client: org_id || '',
+                sn: ''
+            },
             headers: { 'X-CSRFToken': getCookie('csrftoken') },
             dataType: 'json',
             success: function(result) {
-                $('#id_equipment_edit').empty()
+                $('#id_equipment_edit').empty();
+
+                // Добавляем пустую опцию, чтобы можно было сохранить "свободную форму"
+                $('#id_equipment_edit').append('<option value=""></option>');
+
                 result.forEach(function (item){
-                  let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`
+                  let equipment  = `${item.equipment__brand__name} ${item.equipment__model__name} (S/n: ${item.sn})`;
 
-                  equipment_name =  equipment_name.replace(/<br\s*\/?>/gi, '').trim();
-                  const selected = equipment === equipment_name ? 'selected' : '';
-                  $('#id_equipment_edit').append(`<option value="${equipment}" ${selected}>${equipment}</option>`)
-                })
+                  // Безопасная очистка equipment_name, если он null
+                  let clean_equipment_name = equipment_name ? equipment_name.replace(/<br\s*\/?>/gi, '').trim() : '';
+                  const selected = equipment === clean_equipment_name ? 'selected' : '';
 
+                  $('#id_equipment_edit').append(`<option value="${equipment}" ${selected}>${equipment}</option>`);
+                });
+
+                // Обновляем Select2 после добавления всех опций
+                $('#id_equipment_edit').trigger('change');
             }
         });
     }
