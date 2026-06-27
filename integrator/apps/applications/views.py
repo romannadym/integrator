@@ -106,37 +106,44 @@ def AddApplicationView(request):  # Создание заявки
         # === 2. БЛОК ВАЛИДАЦИИ И СОХРАНЕНИЯ ЗАЯВКИ ===
         # =====================================================================
         is_staff = request.user.groups.filter(name__in=['Администратор', 'Инженер']).exists()
-        is_admin = request.user.groups.filter(name='Администратор').exists() # <-- НОВАЯ ПЕРЕМЕННАЯ
+        is_admin = request.user.groups.filter(name='Администратор').exists()
+
         if not is_staff:
             form = ApplicationForm(request.user, request.POST)
         else:
-            # Для персонала делаем копию, чтобы иметь возможность очистить невалидный ID клиента
+            # ДЛЯ ПЕРСОНАЛА: Извлекаем пришедший с фронтенда ID Организации
             post_data = request.POST.copy()
-            client_id = post_data.get('client')
+            org_id = post_data.get('client')
 
-            if client_id and str(client_id).isdigit():
-                client_exists = User.objects.filter(id=int(client_id), is_active=True).exists()
-                if not client_exists:
-                    post_data['client'] = ''  # Сбрасываем битый ID
+            if org_id and str(org_id).isdigit():
+                # Ищем активного пользователя, привязанного к этой организации (например, №50)
+                rep_user = User.objects.filter(organization_id=int(org_id), is_active=True).first()
+
+                if rep_user:
+                    # ПОДМЕНА: передаем форме ID реального пользователя-клиента для успешной валидации
+                    post_data['client'] = str(rep_user.id)
+                else:
+                    # Если в организации нет пользователей, сбрасываем, чтобы вызвать ошибку формы
+                    post_data['client'] = ''
             else:
                 post_data['client'] = ''
 
-            print("Очищенный request body для персонала:", post_data)
+            print("Очищенный request body для персонала (с подменой ID на юзера):", post_data)
             form = ApplicationForm(None, post_data)
 
         if form.is_valid():
             app = form.save(commit=False)
 
-            # --- ЖЕСТКАЯ ПРОВЕКА И ПРИВЯЗКА КОНТАКТНОГО ЛИЦА ---
+            # --- ЖЕСТКАЯ ПРОВЕРКА И ПРИВЯЗКА КОНТАКТНОГО ЛИЦА ---
             contact_id = request.POST.get('contact_user')
             if not is_admin:
-                # Обычный клиент: поле строго обязательно
+                # Обычный клиент и Инженер: поле строго обязательно
                 if contact_id and str(contact_id).isdigit():
                     app.contact_user_id = int(contact_id)
                 else:
                     return JsonResponse({'error': 'Поле "Контактное лицо" обязательно для заполнения.'})
             else:
-                # Админ: если заполнено — привязываем, если пусто — разрешаем NULL
+                # Только Администратор: если пусто — разрешаем NULL
                 if contact_id and str(contact_id).isdigit():
                     app.contact_user_id = int(contact_id)
                 else:
@@ -146,8 +153,12 @@ def AddApplicationView(request):  # Создание заявки
             if not is_staff:
                 app.client = request.user
             else:
-                # Для персонала валидный клиент запишется автоматически из формы (form.save())
-                pass
+                # Персонал: принудительно пишем найденного представителя организации в client_id
+                if rep_user:
+                    app.client = rep_user
+                else:
+                    # На случай, если что-то пошло не так, фоллбэк на текущего юзера
+                    app.client = request.user
 
             if request.user.groups.filter(name='Инженер').exists():
                 app.engineer = request.user
@@ -169,16 +180,16 @@ def AddApplicationView(request):  # Создание заявки
 
                 if found_eq:
                     app.equipment = found_eq
-                    app.contract = found_eq.contract  # Автоматически пишем контракт из оборудования
+                    app.contract = found_eq.contract
                 elif not is_admin:
                     return JsonResponse({'error': 'Выбранное оборудование не найдено или контракт по нему истек.'})
             else:
                 # Если оборудование не пришло в POST-запросе
                 if not is_admin:
-                    # Обычному пользователю отдаем ошибку
+                    # Обычному пользователю и Инженеру отдаем ошибку (свободная форма запрещена)
                     return JsonResponse({'error': 'Поле "Оборудование" обязательно для заполнения.'})
                 else:
-                    # Админу/Инженеру разрешаем создать заявку без оборудования и без контракта
+                    # Только Администратору разрешаем создать заявку без оборудования и без контракта
                     app.equipment = None
                     app.contract = None
 
@@ -203,7 +214,7 @@ def AddApplicationView(request):  # Создание заявки
                                 doc.document.save(original_filename, File(f), save=True)
                             os.remove(temp_file_path)
                 except Exception as e:
-                    print(f"Ошибка сохранения файлов FilePond: {e}")
+                    print(f"Ошибка保存 файлов FilePond: {e}")
 
             # --- Создание начального статуса и истории заявки ---
             AppStatusModel.objects.create(status=app.status, application=app)
@@ -248,7 +259,7 @@ def AddApplicationView(request):  # Создание заявки
             else:
                 AppHistoryModel.objects.create(
                     type=3,
-                    text='Уведомление клиенту не отправлено: контактное лицо не указано или отсутствует email',
+                    text='Уведомление клиенту не отправлено: contact_user не указан или отсутствует email',
                     application=app,
                     author=request.user
                 )
@@ -360,16 +371,14 @@ def EditApplicationView(request, application_id): #Редактирование 
             doc.filename = os.path.basename(doc.document.name)
         # === НОВЫЙ БЛОК: Получаем название организации из client_id ===
         client_org_name = ""
-        if app.client_id:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            # Так как в client_id лежит ID организации, ищем любого пользователя
-            # из этой организации, чтобы безопасно вытащить её название
-            user_in_org = User.objects.filter(organization_id=app.client_id).select_related('organization').first()
-            if user_in_org and user_in_org.organization:
-                client_org_name = user_in_org.organization.name
+        if app.client:
+            # Так как мы починили логику создания, в app.client теперь лежит
+            # правильный пользователь (представитель заказчика).
+            # Просто берем его организацию напрямую:
+            if app.client.organization:
+                client_org_name = app.client.organization.name
             else:
-                client_org_name = f"Организация #{app.client_id}"
+                client_org_name = f"Клиент без организации (ID: {app.client.id})"
         form = EditApplicationForm(instance = app)
         formset = AppStatusFormset(instance = app)
         document = EditAppDocumentsFormset(instance = app)

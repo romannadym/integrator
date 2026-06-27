@@ -89,20 +89,18 @@
     $('#t-engineer').select2();
     $('#id_contact_user').select2();
     // Получаем contract_id (если он есть) или 'null'
+    // НОВЫЙ ВАРИАНТ:
     let contract_id = "{{ data.application.contract_id|default_if_none:'' }}";
-    // Получаем client_id (чтобы найти организацию)
-    let client_id = "{{ data.application.client_id|default_if_none:'' }}";
+    let real_org_id = "{{ data.org_id_for_ajax|default_if_none:'' }}"; // Берем правильную организацию!
 
     $.ajax({
         url: '/applications/add/',
         method: 'POST',
-        // Передаем оба параметра. Бэкенд сначала поищет по contract_id,
-        // а если его нет (заявка пустая) - найдет всё активное оборудование клиента.
-        data: { contract_id: contract_id, client: client_id, sn: '' },
+        // Передаем real_org_id в параметр client:
+        data: { contract_id: contract_id, client: real_org_id, sn: '' },
         headers: { 'X-CSRFToken': getCookie('csrftoken') },
         dataType: 'json',
         success: function(result) {
-            // Добавляем пустую опцию, чтобы админ мог оставить поле пустым
             $('#t-equipments').append('<option value=""></option>');
 
             result.forEach(function (item){
@@ -114,7 +112,6 @@
               $('#t-equipments').append(`<option value="${equipment}" ${selected} >${equipment}</option>`)
             });
 
-            // Инициализируем Select2 после загрузки опций
             $('#t-equipments').trigger('change');
         }
     });
