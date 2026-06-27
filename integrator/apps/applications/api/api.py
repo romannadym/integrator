@@ -536,21 +536,20 @@ class ApplicationsListAPIViewNew(APIView):
             tickets = ApplicationModel.objects.filter(**prms)
 
         tickets = tickets.annotate(
-                organization = Subquery(User.objects.filter(id = OuterRef('client_id')).values('organization__name')),
                 equipment_name = Concat('equipment__equipment__brand__name', Value(' '), 'equipment__equipment__model__name', Value('<br> (S/n: '), 'equipment__sn', Value(')')),
                 status_name = F('status__name'),
                 priority_name = Func(F('priority__name'), Value(''), function = 'IFNULL', output_field = CharField()),
-                # 1. ID организации (берем из контракта, если пусто - берем client_id)
+                # 1. ID организации: берем из контракта, если пусто — переходим к пользователю-клиенту
                 organization_id = Coalesce(
                     F('equipment__contract__client__organization__id'),
-                    F('client_id')
+                    F('client__organization__id')
                 ),
 
-                # 2. Название организации (ищем через Subquery по organization_id)
+                # 2. Название организации
                 organization_name = Func(
                     Coalesce(
                         F('equipment__contract__client__organization__name'),
-                        Subquery(User.objects.filter(organization_id=OuterRef('client_id')).values('organization__name')[:1])
+                        F('client__organization__name')
                     ),
                     Value(''),
                     function='IFNULL',
@@ -615,7 +614,8 @@ class ApplicationsListAPIViewNew(APIView):
                     When(status__name='Закрыта', then=Value(2)),
                     default=Value(1),
                     output_field=IntegerField()
-                )
+                ),
+                contract_number = F('equipment__contract__number')
             )
 
         # Фильтрация по "только мои"
@@ -715,7 +715,7 @@ class ApplicationsListAPIViewNew(APIView):
 
         paginator = Paginator(tickets, length)
         page_obj = paginator.get_page(page_number)
-        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'contract_id', 'problem', 'description', 'organization_user_id', 'last_change_date',]
+        fields = ['id', 'formatted_date', 'equipment_id', 'equipment_name', 'status_id', 'status_name', 'contract_id', 'contract_number', 'problem', 'description', 'organization_user_id', 'last_change_date',]
 
         if is_staff:
             fields.extend([
@@ -1268,20 +1268,19 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
 
         User = get_user_model()
         client_contacts = []
+        org_id = None
 
-        # ОПРЕДЕЛЯЕМ ОРГАНИЗАЦИЮ С УЧЕТОМ СПЕЦИФИКИ АДМИНСКИХ ЗАЯВОК
+        # === 1. ЖЕЛЕЗНО ОПРЕДЕЛЯЕМ ID ОРГАНИЗАЦИИ ===
         if application.contract and application.contract.organization:
-            # Если контракт есть — берем организацию из контракта
+            # Если есть контракт - берем организацию из него
             org_id = application.contract.organization.id
-        else:
-            # Если контракта нет (пустая заявка от админа), то в поле client_id
-            # на самом деле записан чистый ID организации из фронтенда создания.
-            org_id = application.client_id
+        elif application.client and application.client.organization:
+            # Если контракта нет (свободная форма) - берем организацию самого клиента!
+            org_id = application.client.organization.id
 
-        # Если организация успешно найдена одним из способов — подтягиваем её пользователей
+        # === 2. СОБИРАЕМ КОНТАКТЫ ===
         if org_id:
             contacts_qs = User.objects.filter(organization_id=org_id, is_active=True)
-
             for user in contacts_qs:
                 fio = f"{user.last_name} {user.first_name}".strip()
                 client_contacts.append({
@@ -1291,36 +1290,17 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
                 })
 
         serializer = ApplicationDetailsSerializer(application)
-        #if permissions['is_staff']:
+
+        # ... твой код получения history, spares, Statuses, Priority, Engineers ...
+        # (оставляешь его как было)
         history = ApplicationHistoryAPIView().get(request=request._request, application_id=application_id).data
         history_sorted = sorted(history, key=lambda x: x['pubdate'])
-        #-------------------------------
-        #else:
-            # Для обычных пользователей извлекаем комментарии из ответа
-        #    comments_response = ApplicationCommentsAPIView().get(request=request, application_id=application_id).data
-            # Инициализируем history пустым списком по умолчанию
-        #    history = []
-        #    if 'comments' in comments_response:
-        #        history = list(comments_response['comments'])  # Преобразуем QuerySet в список
-
-        #    def parse_date(date_str):
-        #        return datetime.strptime(date_str, '%d.%m.%Y %H:%M')
-
-        #    history_sorted = {}
-        #    history_sorted['comments'] = sorted(history, key=lambda x: parse_date(x['formatted_date']))
-            #print("Sample content:", history_sorted)
-            #-----------------------------
-        #if permissions['is_staff']:
-
-        #else:
-            #history_sorted = sorted(history, key=lambda x: x['pubdate'])
-        #print("History data type:", type(history_sorted))
-        #print("Sample content:", history_sorted)  # Первые 3 элемента
         spares = SparesListAPIView.as_view()(request._request).data
         Statuses = AppStatusSerializer(StatusModel.objects.all(), many=True).data
         Priority = AppPrioritySerializer(AppPriorityModel.objects.all(), many=True).data
         Engineers = EngineersListAPIView.as_view()(request._request).data
 
+        # === 3. ДОБАВЛЯЕМ org_id_for_ajax В ОТВЕТ ===
         return Response({
             'application': serializer.data,
             'history': history_sorted,
@@ -1329,7 +1309,8 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'statuses': Statuses,
             'priorities': Priority,
             'engineers': Engineers,
-            'client_contacts': client_contacts,
+            'client_contacts': client_contacts, # Теперь контакты точно соберутся!
+            'org_id_for_ajax': org_id,          # <-- Прокидываем ID организации для фронта
         }, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -1513,11 +1494,19 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'type': 'edit'
         }
 
-        # Отправка контактному лицу
-        if send_email(params, 'Изменение статуса заявки', [application.contact_user.email]):
+        # БЕЗОПАСНАЯ Отправка контактному лицу
+        if application.contact_user and application.contact_user.email:
+            if send_email(params, 'Изменение статуса заявки', [application.contact_user.email]):
+                history.append({
+                    'type': 3,
+                    'text': f'Уведомление об изменении статуса заявки на "{status.name}" отправлено контактному лицу',
+                    'application': application,
+                    'author': request.user
+                })
+        else:
             history.append({
                 'type': 3,
-                'text': f'Уведомление об изменении статуса заявки на "{status.name}" отправлено контактному лицу',
+                'text': f'Уведомление клиенту об изменении статуса на "{status.name}" не отправлено: контактное лицо не указано',
                 'application': application,
                 'author': request.user
             })
@@ -1542,7 +1531,7 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             })
 
     def _send_priority_notifications(self, priority, application, request, history):
-        """Отправка уведомлений об изменении статуса"""
+        """Отправка уведомлений об изменении приоритета"""
         params = {
             'id': application.id,
             'url': request.build_absolute_uri(application.get_absolute_url()),
@@ -1550,11 +1539,19 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
             'type': 'priority'
         }
 
-        # Отправка контактному лицу
-        if send_email(params, 'Изменение приоритета заявки', [application.contact_user.email]):
+        # БЕЗОПАСНАЯ Отправка контактному лицу
+        if application.contact_user and application.contact_user.email:
+            if send_email(params, 'Изменение приоритета заявки', [application.contact_user.email]):
+                history.append({
+                    'type': 3,
+                    'text': f'Уведомление об изменении приоритета заявки "{priority.name}" отправлено контактному лицу',
+                    'application': application,
+                    'author': request.user
+                })
+        else:
             history.append({
                 'type': 3,
-                'text': f'Уведомление об изменении приоритета заявки "{priority.name}" отправлено контактному лицу',
+                'text': f'Уведомление клиенту об изменении приоритета на "{priority.name}" не отправлено: контактное лицо не указано',
                 'application': application,
                 'author': request.user
             })
@@ -1619,11 +1616,17 @@ class EditApplicationAPIView(APIView): #Редактирование заявк�
 
         history.append({'type': 1, 'text': 'Заявка удалена', 'number': application_id, 'author': request.user})
 
-        if send_email(params = params, title = 'Изменение статуса заявки', send_to = [email]):
-            text = 'Отправлено сообщение об удалении заявки на адрес электронной почты ' + email
+        # ПРОВЕРЯЕМ, ЕСТЬ ЛИ EMAIL
+        if email:
+            if send_email(params = params, title = 'Изменение статуса заявки', send_to = [email]):
+                # Используем f-строки для безопасной склейки
+                text = f'Отправлено сообщение об удалении заявки на адрес электронной почты {email}'
+            else:
+                text = f'Не удалось отправить сообщение об удалении заявки на адрес электронной почты {email}'
+            history.append({'type': 3, 'text': text, 'number': application_id, 'author': request.user})
         else:
-            text = 'Не удалось отправить сообщение об удалении заявки на адрес электронной почты ' + email
-        history.append({'type': 3, 'text': text, 'number': application_id, 'author': request.user})
+            # Если контактного лица или email нет, просто пишем об этом в историю
+            history.append({'type': 3, 'text': 'Уведомление об удалении не отправлено: контактное лицо или email отсутствует', 'number': application_id, 'author': request.user})
 
         if send_telegram(params = params):
             text = 'Отправлено сообщение об удалении заявки в телеграм-канал'
