@@ -382,6 +382,23 @@ def EditApplicationView(request, application_id): #Редактирование 
         form = EditApplicationForm(instance = app)
         formset = AppStatusFormset(instance = app)
         document = EditAppDocumentsFormset(instance = app)
+        # === НОВЫЙ БЛОК: Получаем дату файла из ОС Linux ===
+        import os
+        from datetime import datetime
+
+        for doc_form in document.forms:
+            doc_form.file_date = "" # Ставим заглушку по умолчанию
+            # Если документ уже сохранен в БД и у него есть путь к файлу
+            if doc_form.instance.pk and doc_form.instance.document:
+                try:
+                    file_path = doc_form.instance.document.path
+                    if os.path.exists(file_path):
+                        # getmtime возвращает timestamp (для загруженных файлов это дата сохранения на диск)
+                        mtime = os.path.getmtime(file_path)
+                        doc_form.file_date = datetime.fromtimestamp(mtime).strftime('%d.%m.%Y %H:%M')
+                except Exception as e:
+                    print(f"Не удалось получить дату файла {doc_form.instance.document}: {e}")
+        # ====================================================
         comment = AppEditCommentForm()
         spares = AppSpareFormset(instance = app)
 

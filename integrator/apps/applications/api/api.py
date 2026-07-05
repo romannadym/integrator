@@ -254,12 +254,44 @@ class DocumentDeleteAPI(APIView):
                 {"error": f"Ошибка при удалении: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+class CommentDocumentDeleteAPI(APIView):
+    """
+    API для удаления прикрепленных файлов из комментариев
+    """
+    permission_classes = [IsAuthenticated,]
+
+    def delete(self, request, document_id):
+        try:
+            from applications.models import AppCommentDocumentsModel
+            document = AppCommentDocumentsModel.objects.get(id=document_id)
+
+            # Базовая проверка прав: удалять может админ/инженер или автор комментария
+            if not is_admin_or_engineer(request.user) and request.user != document.comment.author:
+                return Response({'message': 'Недостаточно прав'}, status=status.HTTP_403_FORBIDDEN)
+
+            # Физически удаляем файл
+            file_path = document.document.path
+            import os
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            # Удаляем запись из базы
+            document.delete()
+
+            return Response({'success': 'Файл успешно удален'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Ошибка при удалении: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UploadDoc(APIView):
     permission_classes = [IsAuthenticated,]
     def post(self, request, *args, **kwargs):
         if request.method == 'POST':
-            upload = request.FILES['filepond']
+            # Вместо жесткого ['filepond'], берем первый файл из FILES
+            if not request.FILES:
+                return Response({'error': 'Файл не был передан'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Берем любой первый файл из списка переданных
+            upload = next(iter(request.FILES.values()))
             filename = f"temp/{uuid.uuid4()}_{upload.name}"
             path = default_storage.save(filename, upload)
             return Response({'id': path})
@@ -1803,7 +1835,32 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
             )
         ).values('id', 'text', 'formatted_date', 'author_name', 'author_id')
 
-        return Response({'comments': comments}, status = status.HTTP_200_OK)
+        # === ОБНОВЛЕННЫЙ БЛОК: Подтягиваем файлы для комментариев ===
+        comments_list = list(comments)
+        comment_ids = [c['id'] for c in comments_list]
+        from applications.models import AppCommentDocumentsModel
+        comment_docs = AppCommentDocumentsModel.objects.filter(comment_id__in=comment_ids)
+
+        docs_map = {}
+        for doc in comment_docs:
+            if doc.comment_id not in docs_map:
+                docs_map[doc.comment_id] = []
+            docs_map[doc.comment_id].append({
+                'id': doc.id,                # <-- ОБЯЗАТЕЛЬНО ДОБАВЛЯЕМ ID ФАЙЛА
+                'name': doc.name,
+                'url': doc.document.url if doc.document else '',
+                'filesize': doc.filesize
+            })
+
+        import json
+        for c in comments_list:
+            docs = docs_map.get(c['id'], [])
+            c['documents'] = docs
+            # Кодируем список в JSON и экранируем кавычки, чтобы безопасно вставить в HTML data-атрибут
+            c['documents_json'] = json.dumps(docs).replace("'", "&#39;")
+        # ======================================================
+
+        return Response({'comments': comments_list}, status = status.HTTP_200_OK)
 
     @extend_schema(
         tags = ['Заявки (Done)'],
@@ -1842,8 +1899,39 @@ class ApplicationCommentsAPIView(APIView): #Редактирование зая�
 
         serializer = AppCommentSerializer(data = request.data)
         if serializer.is_valid():
-            serializer.save(application = application, author = request.user)
+            # Сохраняем сам комментарий в базу
+            new_comment = serializer.save(application=application, author=request.user)
+
+            # === ИСПРАВЛЕННЫЙ БЛОК: Читаем ID файлов из строки JSON ===
+            import json, os
+            from django.core.files.base import File
+            from django.conf import settings
+            from applications.models import AppCommentDocumentsModel
+
+            # Получаем строку из FormData: "['temp/uuid_file.png', ...]"
+            uploaded_files_json = request.data.get('uploaded_files', '[]')
+
+            if uploaded_files_json and uploaded_files_json != '[]':
+                try:
+                    uploaded_file_ids = json.loads(uploaded_files_json.replace("'", '"')) # нормализуем кавычки
+                    for file_id in uploaded_file_ids:
+                        temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
+
+                        if os.path.exists(temp_file_path):
+                            # Имя файла без UUID
+                            filename = os.path.basename(file_id).split('_', 1)[-1]
+
+                            doc = AppCommentDocumentsModel(comment=new_comment, name=filename)
+                            with open(temp_file_path, 'rb') as f:
+                                doc.document.save(filename, File(f), save=True)
+
+                            os.remove(temp_file_path) # Удаляем временный
+                except Exception as e:
+                    print(f"Ошибка при обработке файлов FilePond: {e}")
+            # ========================================================
+
             return Response(serializer.data, status = status.HTTP_200_OK)
+
         return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
 @extend_schema(
@@ -1864,13 +1952,36 @@ class AppCommentAPIView(APIView):
     def put(self, request, comment_id, *args, **kwargs):
         comment = GetComment(comment_id)
         if not is_admin_or_engineer(request.user) and not request.user == comment.author:
-            return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
+            return Response({'message': 'Недостаточно прав'}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = AppCommentSerializer(comment, data = request.data)
+        # 1. Сохраняем текст через сериализатор
+        serializer = AppCommentSerializer(comment, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status = status.HTTP_200_OK)
-        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+            # 2. Обрабатываем новые прикрепленные файлы (тот же блок, что был в POST)
+            import json, os
+            from django.core.files.base import File
+            from django.conf import settings
+            from applications.models import AppCommentDocumentsModel
+
+            uploaded_files_raw = request.data.get('uploaded_files', '[]')
+            if uploaded_files_raw:
+                try:
+                    uploaded_file_ids = json.loads(uploaded_files_raw)
+                    for file_id in uploaded_file_ids:
+                        temp_file_path = os.path.join(settings.MEDIA_ROOT, file_id)
+                        if os.path.exists(temp_file_path):
+                            filename = os.path.basename(file_id).split('_', 1)[-1]
+                            doc = AppCommentDocumentsModel(comment=comment, name=filename)
+                            with open(temp_file_path, 'rb') as f:
+                                doc.document.save(filename, File(f), save=True)
+                            os.remove(temp_file_path)
+                except Exception as e:
+                    print(f"Ошибка при сохранении файлов: {e}")
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         summary = 'Редактирование заявки. Удаление комментария',
@@ -1910,9 +2021,6 @@ class ApplicationHistoryAPIView(APIView):
         responses = {(200, 'application/json'): OpenApiResponse(response = HistorySerializer())}
     )
     def get(self, request, application_id, *args, **kwargs):
-        #if not is_admin_or_engineer(request.user):
-        #    return Response({'message': 'Недостаточно прав'}, status = status.HTTP_403_FORBIDDEN)
-
         statuses = AppHistoryModel.objects.filter(Q(application_id = application_id) & Q(Q(type = 1) | Q(type = 2) | Q(type = 5) | Q(type = 6)))\
             .annotate(
                 author_name = Trim(
@@ -1951,7 +2059,33 @@ class ApplicationHistoryAPIView(APIView):
                 record_type = Value('comment')
             )\
             .order_by('pubdate').values('id', 'pubdate', 'formatted_date', 'text', 'author_name', 'record_type', 'hide', 'author_id')
-        history = sorted(chain(statuses, comments), key=lambda item: item['pubdate'], reverse = True)
+
+        # === ОБНОВЛЕННЫЙ БЛОК: Подтягиваем файлы для комментариев ===
+        comments_list = list(comments)
+        comment_ids = [c['id'] for c in comments_list]
+        from applications.models import AppCommentDocumentsModel
+        comment_docs = AppCommentDocumentsModel.objects.filter(comment_id__in=comment_ids)
+
+        docs_map = {}
+        for doc in comment_docs:
+            if doc.comment_id not in docs_map:
+                docs_map[doc.comment_id] = []
+            docs_map[doc.comment_id].append({
+                'id': doc.id,                # <-- ОБЯЗАТЕЛЬНО ДОБАВЛЯЕМ ID ФАЙЛА
+                'name': doc.name,
+                'url': doc.document.url if doc.document else '',
+                'filesize': doc.filesize
+            })
+
+        import json
+        for c in comments_list:
+            docs = docs_map.get(c['id'], [])
+            c['documents'] = docs
+            # Кодируем список в JSON и экранируем кавычки, чтобы безопасно вставить в HTML data-атрибут
+            c['documents_json'] = json.dumps(docs).replace("'", "&#39;")
+        # ======================================================
+
+        history = sorted(chain(statuses, comments_list), key=lambda item: item['pubdate'], reverse = True)
 
         return Response(history, status = status.HTTP_200_OK)
 

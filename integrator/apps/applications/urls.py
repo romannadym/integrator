@@ -68,5 +68,6 @@ urlpatterns = [
     path('api/ticketszip/<int:ticketszip_id>', SkladTicketsZipAPI.as_view(), name = 'applications-ticketszip'),
     path('api/ticketszip/', SkladTicketsZipAPI.as_view(), name = 'applications-ticketszip'),
     path('api/zips/', SkladZipAPI.as_view(), name = 'applications-zips'),
+    path('api/comments/documents/<int:document_id>/', CommentDocumentDeleteAPI.as_view())
 
 ]
