@@ -89,7 +89,7 @@
     <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between" style="min-height: 45px;">
             <h6 class="card-title fw-semibold mb-0" >Прикрепленные файлы</h6>
-                <button class="btn btn-primary add-btn {% if data.application.status_id == 4 %} disabled {% endif %}" data-bs-toggle="modal" data-bs-target="#showModalUploadFiles">Загрузить файлы</button>
+                <button class="btn btn-primary add-btn {% if data.application.status_id == 4 %} disabled {% endif %}" data-bs-toggle="modal" data-bs-target="#showModalUploadFiles" >Загрузить файлы</button>
 
         </div>
         {% for doc in document %}
@@ -103,7 +103,13 @@
                   </div>
                   <div class="flex-grow-1 ms-3">
                       <h6 class="mb-1"><a href="javascript:void(0);">{{ doc.name.value }}</a></h6>
-                      <small class="text-muted">{{ doc.filesize }}</small>
+                      <small class="text-muted">
+                        {{ doc.filesize }}
+                        {% if doc.file_date %}
+                              <span class="mx-1">|</span>
+                              <i class="ri-calendar-event-line align-middle"></i> {{ doc.file_date }}
+                          {% endif %}
+                      </small>
                   </div>
                   <div class="hstack gap-3 fs-16">
                       <a href="{% get_media_prefix %}{{ doc.document.value }}" onclick="event.preventDefault(); downloadWithCustomName(this, '{{  doc.name.value }}')" class="text-muted"><i class="ri-download-2-line"></i></a>

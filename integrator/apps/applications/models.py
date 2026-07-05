@@ -11,7 +11,7 @@ from django.urls import reverse
 from io import BytesIO
 from django.core.files import File
 from ckeditor.fields import RichTextField
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.utils.functional import cached_property
 from bs4 import BeautifulSoup
@@ -27,6 +27,13 @@ from equipments.models import EquipmentModel
 from spares.models import SpareModel
 
 from integrator.apps.functions import send_email, send_telegram
+
+def comment_file_name(instance, filename):
+    # Путь вида: applications/<ID_заявки>/comments/<СГЕНЕРИРОВАННОЕ_ИМЯ_ФАЙЛА>
+    path = f'applications/{instance.comment.application_id}/comments/'
+    ext = filename.split('.')[-1]
+    new_filename = datetime.now().strftime("%d%m%Y%H%M%S") + '.' + ext
+    return os.path.join(path, new_filename)
 
 def file_name(instance, filename):
     path = 'applications/' + str(instance.application.pk) + '/'
@@ -314,6 +321,50 @@ def comments_send_messages(comment, method_type):
     history_instance = [AppHistoryModel(**row) for row in history]
     AppHistoryModel.objects.bulk_create(history_instance)
 
+class AppCommentDocumentsModel(models.Model):
+    from integrator.apps.validators import validate_format, validate_size
+
+    name = models.CharField('Наименование файла', max_length=300, blank=True)
+    # Используем ту же валидацию, что и в основных документах
+    document = models.FileField('Файл', upload_to=comment_file_name, validators=[validate_format, validate_size])
+
+    # ПРИВЯЗКА К КОММЕНТАРИЮ, А НЕ К ЗАЯВКЕ
+    comment = models.ForeignKey(AppCommentModel, verbose_name='Комментарий', on_delete=models.CASCADE, related_name="documents")
+
+    def __str__(self):
+        return self.name
+
+    import os
+    def save(self, *args, **kwargs):
+        # Автоматически сохраняем оригинальное имя файла
+        if not self.name and self.document:
+            self.name = os.path.basename(self.document.name)
+        super().save(*args, **kwargs)
+
+    @cached_property
+    def filesize(self):
+        """Возвращает размер файла в удобочитаемом формате"""
+        if self.document:
+            try:
+                size_bytes = self.document.size
+                return self.human_readable_size(size_bytes)
+            except (ValueError, OSError):
+                return "0 B"
+        return "0 B"
+
+    @staticmethod
+    def human_readable_size(size_bytes):
+        """Конвертирует размер в байтах в удобочитаемый формат"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} PB"
+
+    class Meta:
+        verbose_name = 'Файл комментария'
+        verbose_name_plural = 'Файлы комментариев'
+
 class AppSpareModel(models.Model):
     spare = models.ForeignKey(SpareModel, verbose_name = 'Запчасть', on_delete = models.CASCADE, related_name = "appspare")
     application = models.ForeignKey(ApplicationModel, verbose_name = 'Заявка', on_delete = models.CASCADE, related_name = "appeqspare")
@@ -453,3 +504,16 @@ class EmailLastUID(models.Model):
             if count == 0:
                 return True
         return False
+
+@receiver(post_delete, sender=AppCommentDocumentsModel)
+def auto_delete_comment_file_on_delete(sender, instance, **kwargs):
+    """
+    Удаляет физический файл из файловой системы Linux
+    при удалении записи AppCommentDocumentsModel из БД.
+    """
+    if instance.document:
+        if os.path.isfile(instance.document.path):
+            try:
+                os.remove(instance.document.path)
+            except Exception as e:
+                print(f"Не удалось удалить физический файл {instance.document.path}: {e}")

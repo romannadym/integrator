@@ -10,9 +10,20 @@
             <div class="modal-body">
                 <div class="row g-3">
 
-                    <div class="col-lg-12">
-                        <h6 class="fw-semibold">Комментарий:</h6>
-                        <textarea class="form-control ckeditor-output" id="e-comment" rows="12"></textarea>
+                  <div class="col-lg-12">
+                      <h6 class="fw-semibold">Комментарий:</h6>
+                      <textarea class="form-control ckeditor-output" id="e-comment" rows="12"></textarea>
+                  </div>
+
+                  <div class="col-lg-12 mt-2">
+                      <h6 class="fw-semibold fs-13 text-muted mb-2">Прикрепленные файлы:</h6>
+                      <div id="e-comment-files" class="d-flex flex-column gap-2">
+                          </div>
+                  </div>
+                  <div class="col-lg-12 mt-3">
+                        <h6 class="fw-semibold fs-13 text-muted mb-2">Добавить новые файлы:</h6>
+                        <input type="file" name="new_comment_files" id="edit-comment-files" class="filepond filepond-edit" multiple>
+                        <input type="hidden" name="edit_uploaded_files" id="edit-uploaded-files" value="[]">
                     </div>
 
                 </div>
@@ -58,191 +69,226 @@
 </div>
 <script type="text/javascript">
     $(document).ready(function() {
-      $('#showModalEditComment').on('show.bs.modal', function (event) {
 
-         const button = $(event.relatedTarget); // Кнопка, что вызвала модал
-         const textComment = button.data('textEdit');
-         const commentId = button.data('commentId');
+        // 1. Инициализация FilePond (делается ОДИН раз при загрузке)
+        const editPond = FilePond.create(document.querySelector('.filepond-edit'), {
+            labelIdle: 'Перетащите новые файлы сюда',
+            server: {
+                process: {
+                    url: '/applications/api/upload/',
+                    onload: (res) => {
+                        const result = JSON.parse(res);
+                        let currentFiles = JSON.parse($('#edit-uploaded-files').val() || '[]');
+                        currentFiles.push(result.id);
+                        $('#edit-uploaded-files').val(JSON.stringify(currentFiles));
+                        return result.id;
+                    }
+                },
+                revert: (uniqueFileId, load, error) => {
+                    fetch('/applications/api/revert/', { method: 'DELETE', body: uniqueFileId, headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+                    .then(() => {
+                        let currentFiles = JSON.parse($('#edit-uploaded-files').val() || '[]');
+                        currentFiles = currentFiles.filter(id => id !== uniqueFileId);
+                        $('#edit-uploaded-files').val(JSON.stringify(currentFiles));
+                        load();
+                    });
+                },
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            }
+        });
 
-         if (CKEDITOR.instances['e-comment']) {
-             CKEDITOR.instances['e-comment'].destroy(true);
-         }
+        // 2. Логика открытия модалки редактирования
+        $('#showModalEditComment').on('show.bs.modal', function (event) {
+            const button = $(event.relatedTarget);
+            const textComment = button.data('textEdit');
+            const commentId = button.data('commentId');
+            const documents = button.data('documents');
 
-         CKEDITOR.replace('e-comment', {
-             toolbar: [
-                 { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike'] },
-                 { name: 'links', items: ['Link', 'Unlink'] },
-                 { name: 'lists', items: ['BulletedList', 'NumberedList'] },
-                 { name: 'undo', items: ['Undo', 'Redo'] }
-             ],
-             // 1. Явно разрешаем data- атрибуты для <a>
-             extraAllowedContent: 'a[data-*]{*}; div[data-*]{*}',
-             // 2. Отключаем автоматическую фильтрацию
-             allowedContent: true,
-             // 3. Запрещаем преобразование символов в сущности
-             basicEntities: false,
-             entities: false,
-             // 4. Режим ввода
-             enterMode: CKEDITOR.ENTER_P,
-             shiftEnterNewtonMode: CKEDITOR.ENTER_P,
-             // 5. Отключаем очистку стилей
-             forcePasteAsPlainText: false,
-             // 6. Для Bootstrap-модал: явно разрешаем data-bs-toggle
-             contentLanguage: '',
-             // 7. Дополнительная защита от XSS (если нужно)
-             xssProtection: false,
-             fillEmptyBlocks: false,
-         });
-         $('#e-comment').val(textComment);
+            // Сохраняем ID комментария в кнопку для обработчика клика
+            $('#saveComment').data('comment-id', commentId);
 
+            if (CKEDITOR.instances['e-comment']) {
+                CKEDITOR.instances['e-comment'].destroy(true);
+            }
 
+            CKEDITOR.replace('e-comment', {
+                toolbar: [
+                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike'] },
+                    { name: 'links', items: ['Link', 'Unlink'] },
+                    { name: 'lists', items: ['BulletedList', 'NumberedList'] },
+                    { name: 'undo', items: ['Undo', 'Redo'] }
+                ],
+                extraAllowedContent: 'a[data-*]{*}; div[data-*]{*}; img[*]',
+                allowedContent: true
+            });
+            $('#e-comment').val(textComment);
 
-       $('#saveComment').on('click', function (e) {
-         e.preventDefault();
+            const filesContainer = $('#e-comment-files');
+            filesContainer.empty();
 
-         let submitButton = $('#saveComment'); // Убедитесь, что у кнопки отправки есть id='submit-button'
-         submitButton.prop('disabled', true);
-         // Сохраняем текст, если надо восстановить потом
-         let originalText = submitButton.html();
+            if (documents && documents.length > 0) {
+                documents.forEach(doc => {
+                    filesContainer.append(`
+                        <div class="d-flex align-items-center border border-dashed p-1 px-2 rounded bg-light file-item-${doc.id}" style="font-size: 13px;">
+                            <i class="ri-file-text-line text-primary me-2 fs-16"></i>
+                            <div class="me-3 flex-grow-1">
+                                <a href="${doc.url}" target="_blank" class="text-body fw-medium">${doc.name}</a>
+                            </div>
+                            <a href="javascript:void(0);" class="text-danger delete-comment-doc" data-doc-id="${doc.id}" data-doc-name="${doc.name}">
+                                <i class="ri-delete-bin-line fs-18"></i>
+                            </a>
+                        </div>
+                    `);
+                });
+            } else {
+                filesContainer.append('<span class="text-muted fs-12">Файлов нет</span>');
+            }
+        });
 
-         // Блокируем и добавляем фиксированные размеры
-         let buttonWidth = submitButton.outerWidth();
-         let buttonHeight = submitButton.outerHeight();
+        // 3. Сохранение комментария (один обработчик на весь документ)
+        $('#saveComment').off('click').on('click', function () {
+            let commentId = $(this).data('comment-id');
+            let submitButton = $(this);
+            submitButton.prop('disabled', true);
+            // Сохраняем текст, если надо восстановить потом
+           let originalText = submitButton.html();
 
-         submitButton.prop('disabled', true).css({
-           width: buttonWidth,
-           height: buttonHeight
-         }).html(`
-           <span class="d-flex justify-content-center align-items-center w-100 h-100">
-             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-           </span>
-         `);
-         const text = {
-                       text : CKEDITOR.instances['e-comment'].getData()
-                     };
-               $.ajax({
-                 url: '/applications/api/comment/'+commentId,  // Замените на ваш реальный URL
-                 type: 'PUT',
-                 data: text,
+           // Блокируем и добавляем фиксированные размеры
+           let buttonWidth = submitButton.outerWidth();
+           let buttonHeight = submitButton.outerHeight();
+
+           submitButton.prop('disabled', true).css({
+             width: buttonWidth,
+             height: buttonHeight
+           }).html(`
+             <span class="d-flex justify-content-center align-items-center w-100 h-100">
+               <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+             </span>
+           `);
+            let formData = new FormData();
+            formData.append('text', CKEDITOR.instances['e-comment'].getData());
+            formData.append('uploaded_files', $('#edit-uploaded-files').val());
+
+            $.ajax({
+                 url: '/applications/api/comment/' + commentId,
+                 type: 'PUT', // Используем POST для отправки FormData
+                 data: formData,
+                 processData: false,
+                 contentType: false,
                  headers: { 'X-CSRFToken': getCookie('csrftoken') },
                  statusCode: {
-                   200: function (result) {
-                     console.log(result);
-                     //$('#showModalCreateTicketZips').modal('hide');
-                     alertSuccess(`Комментарий отредактирован!`);
-                     $('.edit-ticket-success').on('click', () => location.reload());
-                   },
-                   403: function(result) {
-                       alertError('Ошибка 403!')
-                   },
-                   400: function(result) {
-                       alertError('Ошибка 400!')
-                   },
-                   406: function(result) {
-                       console.log('Ошибка 406!')
-                       alertError('Ошибка 404!<br>'+result.message)
-                   },
-                   422: function(result) {
-                       console.log('Ошибка 422!')
-                       alertError('Ошибка 422!<br>'+result.message)
-                   }
-                 //  $('#showModalCreateTicketZips').modal('hide');
+                     200: function (result) {
+                         alertSuccess(`Комментарий отредактирован!`);
+                         $('.edit-ticket-success').on('click', () => location.reload());
+                     },
+                     403: function(result) { alertError('Ошибка 403: Недостаточно прав!'); },
+                     400: function(result) { alertError('Ошибка 400: Неверные данные!'); },
+                     406: function(result) { alertError('Ошибка 406: ' + (result.message || '')); },
+                     422: function(result) { alertError('Ошибка 422: ' + (result.message || '')); }
                  },
                  error: function (e) {
-                   console.log(e)
-                   let status = '';
-                   if(e.status){
-                     status = 'Статус ошибки - ' + e.status;
-                   }
-                   let detail = '';
-                   if(e.responseJSON)
-                   {
-                     detail = e.responseJSON.detail;
-                   }
-                   alertError(`${status}<br>${detail}`)
+                     console.log(e);
+                     let status = e.status ? 'Статус ошибки - ' + e.status : '';
+                     let detail = e.responseJSON && e.responseJSON.detail ? e.responseJSON.detail : 'Произошла неизвестная ошибка';
+                     alertError(`${status}<br>${detail}`);
                  },
                  complete: function() {
-                   submitButton.prop('disabled', false);
-                   submitButton.html(originalText); // Восстанавливаем текст кнопки
+                     submitButton.prop('disabled', false);
+                     submitButton.html(originalText);
                  }
-               });
              });
-        })
+        });
 
-        $('#showModalRemoveComment').on('show.bs.modal', function (event) {
-           const button = $(event.relatedTarget); // Кнопка, что вызвала модал
-           const textComment = button.data('textEdit');
-           const commentId = button.data('commentId');
-           $('#r-comment').html(textComment);
+        // 1. При открытии модалки удаления — запоминаем ID комментария в кнопке
+    $('#showModalRemoveComment').on('show.bs.modal', function (event) {
+        const button = $(event.relatedTarget);
+        const commentId = button.data('commentId');
+        const textComment = button.data('textEdit');
 
+        // Записываем ID в кнопку, чтобы потом его прочитать
+        $('#removeComment').data('comment-id', commentId);
+        $('#r-comment').html(textComment);
+        console.log("Модалка открыта, ID комментария:", commentId);
+    });
 
-           $('#removeComment').on('click', function (e) {
-             e.preventDefault();
+    // 2. Глобальный обработчик клика по кнопке "Удалить" в модалке
+    // .off().on() гарантирует, что обработчик будет только один
+    $(document).off('click', '#removeComment').on('click', '#removeComment', function() {
+        let commentId = $(this).data('comment-id');
+        let btn = $(this);
 
-             let submitButton = $('#removeComment'); // Убедитесь, что у кнопки отправки есть id='submit-button'
-             submitButton.prop('disabled', true);
-             // Сохраняем текст, если надо восстановить потом
-             let originalText = submitButton.html();
+        console.log("Нажали удалить, ID:", commentId);
 
-             // Блокируем и добавляем фиксированные размеры
-             let buttonWidth = submitButton.outerWidth();
-             let buttonHeight = submitButton.outerHeight();
+        if (!commentId) {
+            alertError("Ошибка: ID комментария не найден!");
+            return;
+        }
 
-             submitButton.prop('disabled', true).css({
-               width: buttonWidth,
-               height: buttonHeight
-             }).html(`
-               <span class="d-flex justify-content-center align-items-center w-100 h-100">
-                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-               </span>
-             `);
-                   $.ajax({
-                     url: '/applications/api/comment/'+commentId,  // Замените на ваш реальный URL
-                     type: 'DELETE',
-                     headers: { 'X-CSRFToken': getCookie('csrftoken') },
-                     statusCode: {
-                       200: function (result) {
-                         console.log(result);
-                         //$('#showModalCreateTicketZips').modal('hide');
-                         alertSuccess(`Комментарий удален!`);
-                         $('.edit-ticket-success').on('click', () => location.reload());
-                       },
-                       403: function(result) {
-                           alertError('Ошибка 403!')
-                       },
-                       400: function(result) {
-                           alertError('Ошибка 400!')
-                       },
-                       406: function(result) {
-                           console.log('Ошибка 406!')
-                           alertError('Ошибка 404!<br>'+result.message)
-                       },
-                       422: function(result) {
-                           console.log('Ошибка 422!')
-                           alertError('Ошибка 422!<br>'+result.message)
-                       }
-                     //  $('#showModalCreateTicketZips').modal('hide');
-                     },
-                     error: function (e) {
-                       console.log(e)
-                       let status = '';
-                       if(e.status){
-                         status = 'Статус ошибки - ' + e.status;
-                       }
-                       let detail = '';
-                       if(e.responseJSON)
-                       {
-                         detail = e.responseJSON.detail;
-                       }
-                       alertError(`${status}<br>${detail}`)
-                     },
-                     complete: function() {
-                       submitButton.prop('disabled', false);
-                       submitButton.html(originalText); // Восстанавливаем текст кнопки
-                     }
-                   });
-                 });
-         })
-    })
+        btn.prop('disabled', true);
 
+        $.ajax({
+            url: '/applications/api/comment/' + commentId + '/', // Добавил слэш на всякий случай
+            type: 'DELETE',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            success: function() {
+                alertSuccess('Комментарий удален!');
+                setTimeout(() => location.reload(), 1000);
+            },
+            error: function(xhr) {
+                console.error("Ошибка удаления:", xhr);
+                alertError('Ошибка удаления: ' + xhr.statusText);
+                btn.prop('disabled', false);
+            }
+        });
+    });
+
+    // === ГЛОБАЛЬНЫЙ ОБРАБОТЧИК УДАЛЕНИЯ ФАЙЛА (ДОБАВЬ ЭТО В $(document).ready) ===
+        $(document).on('click', '.delete-comment-doc', function(e) {
+            e.preventDefault();
+            const docId = $(this).data('docId');
+            const docName = $(this).data('docName');
+            const fileElement = $(this).closest('.d-flex'); // Находит родительский div файла
+
+            Swal.fire({
+                html: '<div class="mt-3">' +
+                    '<lord-icon src="https://cdn.lordicon.com/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>' +
+                    '<div class="mt-4 pt-2 fs-15 mx-5">' +
+                    `<p class="text-muted mx-4 mb-0">Удалить файл <br>"<span class="text-success">${docName}</span>" ?</p>`+
+                    '</div>' +
+                    '</div>',
+                showCancelButton: true,
+                confirmButtonClass: 'btn btn-primary w-xs me-2 mb-1',
+                confirmButtonText: 'Да, удалить',
+                cancelButtonClass: 'btn btn-danger w-xs mb-1',
+                cancelButtonText: 'Отмена',
+                buttonsStyling: false,
+                showCloseButton: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '/applications/api/comments/documents/' + docId + '/',
+                        type: 'DELETE',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                        success: function(res) {
+                            fileElement.fadeOut(300, function() {
+                                $(this).remove();
+                                // Проверка, остались ли файлы
+                                if ($('#e-comment-files').children().length === 0) {
+                                    $('#e-comment-files').append('<span class="text-muted fs-12">Файлов нет</span>');
+                                }
+                            });
+                        },
+                        error: function(err) {
+                            alertError('Не удалось удалить файл.');
+                        }
+                    });
+                }
+            });
+        });
+        // Очистка при закрытии модалки
+        $('#showModalEditComment').on('hidden.bs.modal', function () {
+            editPond.removeFiles();
+            $('#edit-uploaded-files').val('[]');
+        });
+    });
 </script>
