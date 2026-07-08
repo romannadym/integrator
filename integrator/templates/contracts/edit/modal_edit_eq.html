@@ -33,7 +33,7 @@
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">
                         <button type="button" class="btn btn-light" id="close-modal" data-bs-dismiss="modal">Закрыть</button>
-                        <button type="submit" class="btn btn-success" id="edit-eq-btn">Создать</button>
+                        <button type="submit" class="btn btn-success" id="edit-eq-btn">Сохранить</button>
                         <!-- <button type="button" class="btn btn-success" id="edit-btn">Update Task</button> -->
                     </div>
                 </div>
@@ -178,11 +178,19 @@
               <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
             </span>
           `);
+          // Получаем выбранное значение
+          let selectedEqId = $('#e-name').val();
+
           let data = {
               support: $('#e-support').val(),
-              sn: $('#e-sn').val().trim(),
-              new_equipment_id: $('#e-name').val()
+              sn: $('#e-sn').val().trim()
           };
+
+          // Сравниваем с ID, который был при открытии модалки (equipmentId)
+          // Если они разные - значит пользователь выбрал другое оборудование
+          if (selectedEqId && selectedEqId != equipmentId) {
+              data.new_equipment_id = selectedEqId;
+          }
 
           $.ajax({
               url: `/contracts/api/eqcontract/${contractId}/${equipmentId}/`,

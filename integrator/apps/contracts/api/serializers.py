@@ -153,31 +153,31 @@ class EquipmentCreateSerializer(serializers.ModelSerializer):
             'contract': {'required': True}  # Убедитесь, что contract обязателен
         }
 class EquipmentUpdateSerializer(serializers.ModelSerializer):
-     # Поле для выбора нового оборудования (по ID)
+    # Добавляем ID оборудования в качестве Optional поля
     new_equipment_id = serializers.PrimaryKeyRelatedField(
         queryset=EquipmentModel.objects.all(),
         write_only=True,
         required=False,
-        label='Новое оборудование'
+        allow_null=True  # Разрешаем присылать null
     )
 
     class Meta:
-        model = ContractEquipmentModel  # Или ваша модель оборудования
-        fields = ['support', 'sn', 'new_equipment_id']  # Только поле для уровня поддержки
+        model = ContractEquipmentModel
+        fields = ['support', 'sn', 'new_equipment_id']
         extra_kwargs = {
             'support': {'required': True},
             'sn': {'required': True}
         }
 
     def update(self, instance, validated_data):
-        # 1. Меняем оборудование, если передан new_equipment_id
-        new_equipment = validated_data.get('new_equipment_id')
-        if new_equipment is not None:
-            instance.equipment = new_equipment
-
-        # 2. Обновляем остальные поля
+        # 1. Обновляем серийник и поддержку
         instance.sn = validated_data.get('sn', instance.sn)
         instance.support = validated_data.get('support', instance.support)
+
+        # 2. Если прислали новый ID оборудования (отличное от None), меняем его
+        new_eq = validated_data.get('new_equipment_id')
+        if new_eq:
+            instance.equipment = new_eq
 
         instance.save()
         return instance
