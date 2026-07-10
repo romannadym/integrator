@@ -466,40 +466,26 @@ class EqContractsEditAPIView(APIView):
     )
     def put(self, request, contract_id, equipment_id, *args, **kwargs):
         try:
-            # 1. Проверяем существование договора
-            contract = ContractModel.objects.get(pk=contract_id)
+            # 1. Берем запись напрямую из таблицы, чтобы исключить ошибки связи (related_name)
+            equipment_record = ContractEquipmentModel.objects.get(pk=equipment_id, contract_id=contract_id)
 
-            # 2. Получаем оборудование, связанное с этим договором
-            equipment = contract.eqcontracts.get(pk=equipment_id)
+            # 2. Выводим в консоль данные, которые пришли с фронтенда
+            print(f"DEBUG: Data received: {request.data}")
 
-            # 3. Проверяем данные запроса
-            serializer = EquipmentUpdateSerializer(instance=equipment, data=request.data, partial=True)
+            serializer = EquipmentUpdateSerializer(instance=equipment_record, data=request.data, partial=True)
+
             if not serializer.is_valid():
-                return Response(
-                    serializer.errors,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                print(f"DEBUG: Errors: {serializer.errors}") # ОШИБКИ БУДУТ ТУТ
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # 4. Обновляем только уровень поддержки
             updated_equipment = serializer.save()
+            return Response(EquipmentSerializer(updated_equipment).data, status=status.HTTP_200_OK)
 
-            # 5. Возвращаем обновленные данные
-            response_serializer = EquipmentSerializer(updated_equipment)
-            return Response(
-                response_serializer.data,
-                status=status.HTTP_200_OK
-            )
-
-        except ContractModel.DoesNotExist:
-            return Response(
-                {'error': 'Договор не найден'},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except ContractEquipmentModel.DoesNotExist:
-            return Response(
-                {'error': 'Оборудование не найдено в указанном договоре'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Оборудование не найдено'}, status=404)
+        except Exception as e:
+            print(f"DEBUG: Exception: {str(e)}")
+            return Response({'error': str(e)}, status=500)
 
     @extend_schema(
         summary='Удалить оборудование из договора',
